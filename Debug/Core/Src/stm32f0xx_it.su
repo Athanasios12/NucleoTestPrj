@@ -1,0 +1,12 @@
+stm32f0xx_it.c:77:6:NMI_Handler	8	static
+stm32f0xx_it.c:90:6:HardFault_Handler	8	static
+stm32f0xx_it.c:105:6:SVC_Handler	8	static
+stm32f0xx_it.c:118:6:PendSV_Handler	8	static
+stm32f0xx_it.c:131:6:SysTick_Handler	8	static
+stm32f0xx_it.c:152:6:EXTI4_15_IRQHandler	8	static
+stm32f0xx_it.c:172:6:TIM6_IRQHandler	8	static
+stm32f0xx_it.c:186:6:USART1_IRQHandler	8	static
+stm32f0xx_it.c:200:6:USART2_IRQHandler	8	static
+stm32f0xx_it.c:216:6:TIM14_IRQHandler	8	static
+stm32f0xx_it.c:227:13:handleGPIO_Pin11_Interrupt	24	static
+stm32f0xx_it.c:253:13:handleGPIO_Pin13_Interrupt	24	static

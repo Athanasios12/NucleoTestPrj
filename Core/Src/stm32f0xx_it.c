@@ -59,10 +59,10 @@ inline static void handleGPIO_Pin13_Interrupt();
 
 /* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim6;
+extern TIM_HandleTypeDef htim14;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
-extern TIM_HandleTypeDef htim14;
 extern volatile bool btnTrigger;
 extern volatile uint16_t timeCounter;
 const uint16_t btnPressTimeThreshold = 15U; //150ms : 10ms = 1 tim6 tick
@@ -181,6 +181,20 @@ void TIM6_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM14 global interrupt.
+  */
+void TIM14_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM14_IRQn 0 */
+
+  /* USER CODE END TIM14_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim14);
+  /* USER CODE BEGIN TIM14_IRQn 1 */
+
+  /* USER CODE END TIM14_IRQn 1 */
+}
+
+/**
   * @brief This function handles USART1 global interrupt.
   */
 void USART1_IRQHandler(void)
@@ -209,20 +223,6 @@ void USART2_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-
-/**
-  * @brief This function handles TIM6 global interrupt.
-  */
-void TIM14_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM6_IRQn 0 */
-
-  /* USER CODE END TIM6_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim14);
-  /* USER CODE BEGIN TIM6_IRQn 1 */
-
-  /* USER CODE END TIM6_IRQn 1 */
-}
 
 inline void handleGPIO_Pin11_Interrupt()
 {

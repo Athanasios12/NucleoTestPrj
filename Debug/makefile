@@ -41,7 +41,7 @@ all: NucleoTestPrj.elf secondary-outputs
 
 # Tool invocations
 NucleoTestPrj.elf: $(OBJS) $(USER_OBJS) D:\stm_workspace\NucleoTestPrj\STM32F030R8TX_FLASH.ld
-	arm-none-eabi-gcc -o "NucleoTestPrj.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"D:\stm_workspace\NucleoTestPrj\STM32F030R8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="NucleoTestPrj.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "NucleoTestPrj.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"D:\stm_workspace\NucleoTestPrj\STM32F030R8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="NucleoTestPrj.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

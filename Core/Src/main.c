@@ -43,6 +43,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc;
+
 RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim3;
@@ -53,11 +55,13 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+DMA_HandleTypeDef dma;
 TIM_OC_InitTypeDef sConfigOC = {0};
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 TIM_HandleTypeDef tim3;
 volatile uint16_t timeCounter = 0U;
 volatile bool btnTrigger = false;
+volatile uint16_t adcChannelValue = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -69,7 +73,9 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM14_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
+static void InitDMA(void);
 static void initBluetoothHC06(void);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -114,6 +120,21 @@ static void initBluetoothHC06(void)
 {
 	//Initalize Bluetooth with AT commands
 }
+
+static void InitDMA(void)
+{
+	__HAL_RCC_DMA1_CLK_ENABLE();
+
+	dma.Instance = DMA1_Channel1;
+	dma.Init.Direction = DMA_PERIPH_TO_MEMORY;
+	dma.Init.PeriphInc = DMA_PINC_DISABLE; //adc address is always the same
+	dma.Init.MemInc = DMA_MINC_DISABLE; //increment given address of destination buffer to not overwrite, but write next buffer entry
+	dma.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD; //12bit adc so use 16bit as single entry copied from per to ram
+	dma.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+	dma.Init.Mode = DMA_CIRCULAR; //use circular mode so that dma reads continusly the defined peripherial
+	dma.Init.Priority = DMA_PRIORITY_HIGH;
+	HAL_DMA_Init(&dma);
+}
 /* USER CODE END 0 */
 
 /**
@@ -149,6 +170,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM14_Init();
   MX_TIM3_Init();
+  MX_ADC_Init();
   /* USER CODE BEGIN 2 */
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
@@ -156,6 +178,13 @@ int main(void)
   /* TIM14 PWM Init */
   HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  // start adc conversion
+  HAL_ADCEx_Calibration_Start(&hadc);
+  InitDMA();
+  __HAL_LINKDMA(&hadc, DMA_Handle, dma);
+
+  HAL_ADC_Start_DMA(&hadc, (uint32_t*)&adcChannelValue, 1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -177,11 +206,13 @@ int main(void)
 		  //get current rtc time and date
 		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+		  //get current adc conversion
+		  float adcVoltage = ((float)adcChannelValue * 3.3) / 4096.0f;
 		  sprintf(currentTimeDateData,
-			  "Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nCounter : %d",
+			  "Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nCounter : %d\nADC Voltage: %.2fV",
 			  sDate.WeekDay, sDate.Month, sDate.Year,
 			  sTime.Hours, sTime.Minutes, sTime.Seconds,
-		  	  (int) moveSensorState, timeCounter);
+		  	  (int) moveSensorState, timeCounter, adcVoltage);
 		  HAL_UART_Transmit(&huart1, (uint8_t*)currentTimeDateData, strlen(currentTimeDateData), 100);
 		  btnTrigger = false;
 
@@ -233,6 +264,57 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC_Init(void)
+{
+
+  /* USER CODE BEGIN ADC_Init 0 */
+
+  /* USER CODE END ADC_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC_Init 1 */
+
+  /* USER CODE END ADC_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
+  */
+  hadc.Instance = ADC1;
+  hadc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc.Init.ScanConvMode = ADC_SCAN_DIRECTION_FORWARD;
+  hadc.Init.LowPowerAutoWait = DISABLE;
+  hadc.Init.LowPowerAutoPowerOff = DISABLE;
+  hadc.Init.ContinuousConvMode = ENABLE;
+  hadc.Init.DiscontinuousConvMode = DISABLE;
+  hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc.Init.DMAContinuousRequests = DISABLE;
+  hadc.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  if (HAL_ADC_Init(&hadc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel to be converted. 
+  */
+  sConfig.Channel = ADC_CHANNEL_11;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC_Init 2 */
+
+  /* USER CODE END ADC_Init 2 */
+
 }
 
 /**
@@ -319,7 +401,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 4800 - 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 200 - 1;
+  htim3.Init.Period = 200- 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
@@ -507,7 +589,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
@@ -518,14 +600,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PC3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pins : PC2 PC3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

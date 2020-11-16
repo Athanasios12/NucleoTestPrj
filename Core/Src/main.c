@@ -44,6 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc;
+DMA_HandleTypeDef hdma_adc;
 
 RTC_HandleTypeDef hrtc;
 
@@ -55,18 +56,18 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-DMA_HandleTypeDef dma;
 TIM_OC_InitTypeDef sConfigOC = {0};
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 TIM_HandleTypeDef tim3;
 volatile uint16_t timeCounter = 0U;
 volatile bool btnTrigger = false;
-volatile uint16_t adcChannelValue = 0U;
+uint16_t adcBuffer[500];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_USART1_UART_Init(void);
@@ -75,7 +76,6 @@ static void MX_TIM14_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
-static void InitDMA(void);
 static void initBluetoothHC06(void);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -121,26 +121,13 @@ static void initBluetoothHC06(void)
 	//Initalize Bluetooth with AT commands
 }
 
-static void InitDMA(void)
-{
-	__HAL_RCC_DMA1_CLK_ENABLE();
-
-	dma.Instance = DMA1_Channel1;
-	dma.Init.Direction = DMA_PERIPH_TO_MEMORY;
-	dma.Init.PeriphInc = DMA_PINC_DISABLE; //adc address is always the same
-	dma.Init.MemInc = DMA_MINC_DISABLE; //increment given address of destination buffer to not overwrite, but write next buffer entry
-	dma.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD; //12bit adc so use 16bit as single entry copied from per to ram
-	dma.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
-	dma.Init.Mode = DMA_CIRCULAR; //use circular mode so that dma reads continusly the defined peripherial
-	dma.Init.Priority = DMA_PRIORITY_HIGH;
-	HAL_DMA_Init(&dma);
-}
 /* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
   * @retval int
   */
+
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -164,6 +151,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_RTC_Init();
   MX_TIM6_Init();
   MX_USART1_UART_Init();
@@ -179,11 +167,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   // start adc conversion
-  HAL_ADCEx_Calibration_Start(&hadc);
-  InitDMA();
-  __HAL_LINKDMA(&hadc, DMA_Handle, dma);
-
-  HAL_ADC_Start_DMA(&hadc, (uint32_t*)&adcChannelValue, 1);
+  HAL_ADC_Start_DMA(&hadc, (uint32_t*)adcBuffer, 500);
 
   /* USER CODE END 2 */
 
@@ -207,7 +191,7 @@ int main(void)
 		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 		  //get current adc conversion
-		  float adcVoltage = ((float)adcChannelValue * 3.3) / 4096.0f;
+		  float adcVoltage = ((float)adcBuffer[499] * 3.3) / 4096.0f;
 		  sprintf(currentTimeDateData,
 			  "Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nCounter : %d\nADC Voltage: %.2fV",
 			  sDate.WeekDay, sDate.Month, sDate.Year,
@@ -290,13 +274,14 @@ static void MX_ADC_Init(void)
   hadc.Init.Resolution = ADC_RESOLUTION_12B;
   hadc.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc.Init.ScanConvMode = ADC_SCAN_DIRECTION_FORWARD;
+  hadc.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc.Init.LowPowerAutoWait = DISABLE;
   hadc.Init.LowPowerAutoPowerOff = DISABLE;
   hadc.Init.ContinuousConvMode = ENABLE;
   hadc.Init.DiscontinuousConvMode = DISABLE;
   hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc.Init.DMAContinuousRequests = DISABLE;
+  hadc.Init.DMAContinuousRequests = ENABLE;
   hadc.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   if (HAL_ADC_Init(&hadc) != HAL_OK)
   {
@@ -571,6 +556,22 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/** 
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void) 
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  //HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  //HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 

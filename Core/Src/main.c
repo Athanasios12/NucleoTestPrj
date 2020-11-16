@@ -53,6 +53,9 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+TIM_OC_InitTypeDef sConfigOC = {0};
+TIM_OC_InitTypeDef servoPwmConfigOC = {0};
+TIM_HandleTypeDef tim3;
 volatile uint16_t timeCounter = 0U;
 volatile bool btnTrigger = false;
 /* USER CODE END PV */
@@ -74,10 +77,34 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		timeCounter++;
 	}
-	else if(TIM14 == htim->Instance)
+}
+
+static inline void setPWMPeriod()
+{
+	static uint16_t period = 5U;
+	static uint16_t servoPeriod = 5U;
+	if (period >= (1000 - 1))
 	{
-		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_2);
+		period = 5U;
 	}
+	else
+	{
+		period += 100;
+	}
+	if (servoPeriod > 25)
+	{
+		servoPeriod = 5U;
+	}
+	else
+	{
+		servoPeriod += 5;
+	}
+	sConfigOC.Pulse = period;
+	servoPwmConfigOC.Pulse = servoPeriod;
+	HAL_TIM_PWM_ConfigChannel(&htim3, &servoPwmConfigOC, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+	HAL_TIM_PWM_ConfigChannel(&htim14, &sConfigOC, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
 }
 /* USER CODE END PFP */
 
@@ -96,7 +123,6 @@ static void initBluetoothHC06(void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -127,14 +153,13 @@ int main(void)
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
   char currentTimeDateData[80];
+  /* TIM14 PWM Init */
+  HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  /* TIM14 interrupt Init */
-  HAL_TIM_Base_Start_IT(&htim14);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   while (1)
   {
     /* USER CODE END WHILE */
@@ -143,11 +168,12 @@ int main(void)
 	  //light ext led
 	  GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
-
 	  if (true == btnTrigger)
 	  {
 		  //light led
 		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+		  //change PWM period
+		  setPWMPeriod();
 		  //get current rtc time and date
 		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
@@ -158,7 +184,7 @@ int main(void)
 		  	  (int) moveSensorState, timeCounter);
 		  HAL_UART_Transmit(&huart1, (uint8_t*)currentTimeDateData, strlen(currentTimeDateData), 100);
 		  btnTrigger = false;
-		  timeCounter = 0U;
+
 	  }
   }
   /* USER CODE END 3 */
@@ -284,17 +310,18 @@ static void MX_TIM3_Init(void)
   /* USER CODE END TIM3_Init 0 */
 
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM3_Init 1 */
-
+  // 50Hz - 48 000 000 / 48000(prescaler) = 1000Hz , 1000Hz/ 20(period) = 50Hz
+  //default pulse - 0 degrees is 0,5ms - 1 tick is 0.1ms, so 0 = 5 pulse
+  //1.5ms - 90 degrees, 2.5ms - 180 degrees
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 4800 - 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000 -1;
+  htim3.Init.Period = 200 - 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -305,13 +332,11 @@ static void MX_TIM3_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 1000;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_ENABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_SET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  servoPwmConfigOC.OCMode = TIM_OCMODE_PWM1;
+  servoPwmConfigOC.Pulse = 5;
+  servoPwmConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  servoPwmConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &servoPwmConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -339,9 +364,9 @@ static void MX_TIM6_Init(void)
   // with prescaler 48000 - 1
   /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 48000;
+  htim6.Init.Prescaler = 480 - 1;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 1000;
+  htim6.Init.Period = 1000 - 1;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
@@ -369,7 +394,7 @@ static void MX_TIM14_Init(void)
 
   /* USER CODE END TIM14_Init 1 */
   htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 48000 - 1;
+  htim14.Init.Prescaler = 480 - 1;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim14.Init.Period = 1000 - 1;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -378,9 +403,22 @@ static void MX_TIM14_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 10;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_ENABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim14, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM14_Init 2 */
 
   /* USER CODE END TIM14_Init 2 */
+  HAL_TIM_MspPostInit(&htim14);
 
 }
 
@@ -467,10 +505,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
@@ -481,8 +518,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC2 PC3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  /*Configure GPIO pin : PC1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

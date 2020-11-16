@@ -63,6 +63,7 @@ extern TIM_HandleTypeDef htim14;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
+volatile bool btnPressed = false;
 extern volatile bool btnTrigger;
 extern volatile uint16_t timeCounter;
 const uint16_t btnPressTimeThreshold = 15U; //150ms : 10ms = 1 tim6 tick
@@ -233,19 +234,22 @@ inline void handleGPIO_Pin11_Interrupt()
 		if (GPIO_PIN_SET == pin11State)
 		{
 			//rising edge
-			timeCounter = 0U;
-			HAL_TIM_Base_Start_IT(&htim6);
+			if (!btnPressed)
+			{
+				timeCounter = 0U;
+				btnPressed = true;
+				HAL_TIM_Base_Start_IT(&htim6);
+			}
 		}
 		else if (GPIO_PIN_RESET == pin11State)
 		{
 			//falling edge
-			//the counter is increased every 10ms after detecting btn press
-			//register as button press only when the press is longer than 300ms
 			if (timeCounter > btnPressTimeThreshold)
 			{
 				btnTrigger = true;
 			}
 			HAL_TIM_Base_Stop_IT(&htim6);
+			btnPressed = false;
 		}
 	}
 }
@@ -259,19 +263,22 @@ inline void handleGPIO_Pin13_Interrupt()
 		if (GPIO_PIN_RESET == pin13State)
 		{
 			//rising edge
-			timeCounter = 0U;
-			HAL_TIM_Base_Start_IT(&htim6);
+			if (!btnPressed)
+			{
+				timeCounter = 0U;
+				btnPressed = true;
+				HAL_TIM_Base_Start_IT(&htim6);
+			}
 		}
 		else if (GPIO_PIN_SET == pin13State)
 		{
 			//falling edge
-			//the counter is increased every 10ms after detecting btn press
-			//register as button press only when the press is longer than 300ms
 			if (timeCounter > btnPressTimeThreshold)
 			{
 				btnTrigger = true;
 			}
 			HAL_TIM_Base_Stop_IT(&htim6);
+			btnPressed = false;
 		}
 	}
 }

@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include "dht11.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,10 +59,14 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 TIM_OC_InitTypeDef sConfigOC = {0};
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
-TIM_HandleTypeDef tim3;
+
 volatile uint16_t timeCounter = 0U;
 volatile bool btnTrigger = false;
 uint16_t adcBuffer[500];
+
+//DHT 11 Sensor
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,7 +81,7 @@ static void MX_TIM14_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
-static void initBluetoothHC06(void);
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if (TIM6 == htim->Instance)
@@ -112,14 +117,12 @@ static inline void setPWMPeriod()
 	HAL_TIM_PWM_ConfigChannel(&htim14, &sConfigOC, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
 }
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void initBluetoothHC06(void)
-{
-	//Initalize Bluetooth with AT commands
-}
+
 
 /* USER CODE END 0 */
 
@@ -168,7 +171,8 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   // start adc conversion
   HAL_ADC_Start_DMA(&hadc, (uint32_t*)adcBuffer, 500);
-
+  //Init DHT11 Temp and Rh sensor
+  bool dht11_Initalized = DHT11_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -198,6 +202,7 @@ int main(void)
 			  sTime.Hours, sTime.Minutes, sTime.Seconds,
 		  	  (int) moveSensorState, timeCounter, adcVoltage);
 		  HAL_UART_Transmit(&huart1, (uint8_t*)currentTimeDateData, strlen(currentTimeDateData), 100);
+		  timeCounter = 0U;
 		  btnTrigger = false;
 
 	  }

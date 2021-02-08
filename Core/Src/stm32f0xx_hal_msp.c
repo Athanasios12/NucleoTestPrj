@@ -262,7 +262,10 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 
   /* USER CODE END TIM14_MspInit 1 */
   }
-
+  else if(htim_base->Instance == TIM1)
+  {
+	  __HAL_RCC_TIM1_CLK_ENABLE();
+  }
 }
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)

@@ -18,7 +18,7 @@ typedef struct
 	uint8_t checksum;
 } DHT11_Data;
 
-void DHT11_Init(GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_Pin, TIM_TypeDef *timerID);
-bool DTH11_ReadDTH11Data(DHT11_Data *sensorData);
+bool DHT11_Init(GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_Pin, TIM_TypeDef *timerID);
+bool DHT11_ReadDHT11Data(DHT11_Data *sensorData);
 
 #endif /* INC_DHT11_H_ */

@@ -158,7 +158,7 @@ void EXTI4_15_IRQHandler(void)
 		__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_13))
 	{
 		handleGPIO_Pin11_Interrupt();
-		handleGPIO_Pin13_Interrupt();
+		//handleGPIO_Pin13_Interrupt();
 	}
   /* USER CODE END EXTI4_15_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_11);
@@ -262,9 +262,11 @@ inline void handleGPIO_Pin11_Interrupt()
 			if (timeCounter > btnPressTimeThreshold)
 			{
 				btnTrigger = true;
+				timeCounter = 0U;
 			}
 			HAL_TIM_Base_Stop_IT(&htim6);
 			btnPressed = false;
+
 		}
 	}
 }
@@ -275,7 +277,7 @@ inline void handleGPIO_Pin13_Interrupt()
 	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_13))
 	{
 		uint8_t pin13State = (uint8_t)HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13);
-		if (GPIO_PIN_RESET == pin13State)
+		if (GPIO_PIN_SET == pin13State)
 		{
 			//rising edge
 			if (!btnPressed)
@@ -285,7 +287,7 @@ inline void handleGPIO_Pin13_Interrupt()
 				HAL_TIM_Base_Start_IT(&htim6);
 			}
 		}
-		else if (GPIO_PIN_SET == pin13State)
+		else if (GPIO_PIN_RESET == pin13State)
 		{
 			//falling edge
 			if (timeCounter > btnPressTimeThreshold)

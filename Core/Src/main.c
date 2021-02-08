@@ -65,6 +65,9 @@ volatile bool btnTrigger = false;
 uint16_t adcBuffer[500];
 
 //DHT 11 Sensor
+TIM_TypeDef *DHT11_timerID = TIM1;
+GPIO_TypeDef* DHT11_GPIO_PORT = GPIOC;
+uint16_t DHT11_GPIO_Pin = GPIO_PIN_0;
 
 
 /* USER CODE END PV */
@@ -104,7 +107,7 @@ static inline void setPWMPeriod()
 	}
 	if (servoPeriod > 25)
 	{
-		servoPeriod = 5U;
+		servoPeriod = 0U;
 	}
 	else
 	{
@@ -165,6 +168,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+  DHT11_Data DHT11_sensorData = {0};
   char currentTimeDateData[80];
   /* TIM14 PWM Init */
   HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
@@ -172,7 +176,8 @@ int main(void)
   // start adc conversion
   HAL_ADC_Start_DMA(&hadc, (uint32_t*)adcBuffer, 500);
   //Init DHT11 Temp and Rh sensor
-  bool dht11_Initalized = DHT11_Init();
+  bool dht11_Initalized = false;
+  dht11_Initalized = DHT11_Init(DHT11_GPIO_PORT, DHT11_GPIO_Pin, DHT11_timerID);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -196,6 +201,11 @@ int main(void)
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 		  //get current adc conversion
 		  float adcVoltage = ((float)adcBuffer[499] * 3.3) / 4096.0f;
+		  //read Temperature and RH data
+		  if (dht11_Initalized)
+		  {
+			  DHT11_ReadDHT11Data(&DHT11_sensorData);
+		  }
 		  sprintf(currentTimeDateData,
 			  "Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nCounter : %d\nADC Voltage: %.2fV",
 			  sDate.WeekDay, sDate.Month, sDate.Year,
@@ -602,7 +612,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PC13 PC11 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 

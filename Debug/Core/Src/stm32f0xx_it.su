@@ -10,4 +10,3 @@ stm32f0xx_it.c:202:6:TIM14_IRQHandler	8	static
 stm32f0xx_it.c:216:6:USART1_IRQHandler	8	static
 stm32f0xx_it.c:230:6:USART2_IRQHandler	8	static
 stm32f0xx_it.c:243:13:handleGPIO_Pin11_Interrupt	24	static
-stm32f0xx_it.c:272:13:handleGPIO_Pin13_Interrupt	24	static

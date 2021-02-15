@@ -48,8 +48,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-inline static void handleGPIO_Pin11_Interrupt();
-inline static void handleGPIO_Pin13_Interrupt();
+static void handleGPIO_Pin11_Interrupt();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -60,14 +59,11 @@ inline static void handleGPIO_Pin13_Interrupt();
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc;
 extern TIM_HandleTypeDef htim6;
-extern TIM_HandleTypeDef htim14;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 volatile bool btnPressed = false;
 extern volatile bool btnTrigger;
-extern volatile uint16_t timeCounter;
-const uint16_t btnPressTimeThreshold = 15U; //150ms : 10ms = 1 tim6 tick
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -154,15 +150,13 @@ void SysTick_Handler(void)
 void EXTI4_15_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI4_15_IRQn 0 */
-	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_11) ||
-		__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_13))
+	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_11))
 	{
 		handleGPIO_Pin11_Interrupt();
 		//handleGPIO_Pin13_Interrupt();
 	}
   /* USER CODE END EXTI4_15_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_11);
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_13);
   /* USER CODE BEGIN EXTI4_15_IRQn 1 */
 
   /* USER CODE END EXTI4_15_IRQn 1 */
@@ -197,20 +191,6 @@ void TIM6_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles TIM14 global interrupt.
-  */
-void TIM14_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM14_IRQn 0 */
-
-  /* USER CODE END TIM14_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim14);
-  /* USER CODE BEGIN TIM14_IRQn 1 */
-
-  /* USER CODE END TIM14_IRQn 1 */
-}
-
-/**
   * @brief This function handles USART1 global interrupt.
   */
 void USART1_IRQHandler(void)
@@ -240,18 +220,18 @@ void USART2_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
-inline void handleGPIO_Pin11_Interrupt()
+static void handleGPIO_Pin11_Interrupt()
 {
 	//Use timer to handle debouncing
 	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_11))
 	{
 		uint8_t pin11State = (uint8_t)HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11);
+		HAL_TIM_StateTypeDef state = HAL_TIM_Base_GetState(&htim6);
 		if (GPIO_PIN_SET == pin11State)
 		{
 			//rising edge
 			if (!btnPressed)
 			{
-				timeCounter = 0U;
 				btnPressed = true;
 				HAL_TIM_Base_Start_IT(&htim6);
 			}
@@ -259,39 +239,11 @@ inline void handleGPIO_Pin11_Interrupt()
 		else if (GPIO_PIN_RESET == pin11State)
 		{
 			//falling edge
-			if (timeCounter > btnPressTimeThreshold)
+			uint32_t count = __HAL_TIM_GET_COUNTER(&htim6);
+			if ((HAL_TIM_STATE_TIMEOUT == state) &&
+				(true == btnPressed))
 			{
-				btnTrigger = true;
-				timeCounter = 0U;
-			}
-			HAL_TIM_Base_Stop_IT(&htim6);
-			btnPressed = false;
-
-		}
-	}
-}
-
-inline void handleGPIO_Pin13_Interrupt()
-{
-	//Use timer to handle debouncing
-	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_13))
-	{
-		uint8_t pin13State = (uint8_t)HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13);
-		if (GPIO_PIN_SET == pin13State)
-		{
-			//rising edge
-			if (!btnPressed)
-			{
-				timeCounter = 0U;
-				btnPressed = true;
-				HAL_TIM_Base_Start_IT(&htim6);
-			}
-		}
-		else if (GPIO_PIN_RESET == pin13State)
-		{
-			//falling edge
-			if (timeCounter > btnPressTimeThreshold)
-			{
+				//debouncing timer time out, can count this as button press
 				btnTrigger = true;
 			}
 			HAL_TIM_Base_Stop_IT(&htim6);
@@ -299,5 +251,6 @@ inline void handleGPIO_Pin13_Interrupt()
 		}
 	}
 }
+
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "dht11.h"
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,20 +50,22 @@ DMA_HandleTypeDef hdma_adc;
 
 RTC_HandleTypeDef hrtc;
 
-TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef hTim3_PWM_Servo;
 TIM_HandleTypeDef htim6;
-TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-TIM_OC_InitTypeDef sConfigOC = {0};
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 
-volatile uint16_t timeCounter = 0U;
 volatile bool btnTrigger = false;
 uint16_t adcBuffer[500];
+char currentTimeDateData[150];
+
+#define ADC_BUFFER_SIZE 500
+#define ADC_MAX_VOLTAGE 3.3f
+#define ADC_12BIT_CHANNEL_RESOLUTION 4096.0f
 
 //DHT 11 Sensor
 TIM_TypeDef *DHT11_timerID = TIM1;
@@ -80,45 +83,56 @@ static void MX_RTC_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_TIM14_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+static void setPWMPeriod()
 {
-	if (TIM6 == htim->Instance)
-	{
-		timeCounter++;
-	}
-}
-
-static inline void setPWMPeriod()
-{
-	static uint16_t period = 5U;
 	static uint16_t servoPeriod = 5U;
-	if (period >= (1000 - 1))
-	{
-		period = 5U;
-	}
-	else
-	{
-		period += 100;
-	}
 	if (servoPeriod > 25)
 	{
-		servoPeriod = 0U;
+		servoPeriod = 5U;
 	}
 	else
 	{
 		servoPeriod += 5;
 	}
-	sConfigOC.Pulse = period;
 	servoPwmConfigOC.Pulse = servoPeriod;
-	HAL_TIM_PWM_ConfigChannel(&htim3, &servoPwmConfigOC, TIM_CHANNEL_2);
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-	HAL_TIM_PWM_ConfigChannel(&htim14, &sConfigOC, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
+	HAL_TIM_PWM_ConfigChannel(&hTim3_PWM_Servo, &servoPwmConfigOC, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);
+}
+
+static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_sensorData, int moveSensorState)
+{
+	bool sentUpdate = false;
+	if (currentTimeDateData && DHT11_sensorData)
+	{
+		RTC_TimeTypeDef rtcTime = {0};
+		RTC_DateTypeDef rtcDate = {0};
+		HAL_RTC_GetTime(&hrtc, &rtcTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate(&hrtc, &rtcDate, RTC_FORMAT_BIN);
+
+		//get current adc conversion
+		float adcVoltage = ((float)adcBuffer[ADC_BUFFER_SIZE - 1] * ADC_MAX_VOLTAGE)
+			/ ADC_12BIT_CHANNEL_RESOLUTION;
+
+		sprintf(currentTimeDateData,
+			"Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nADC Voltage: %.2fV\n"
+			"Temperature: %d.%d  Humidity: %d.%d\n",
+			rtcDate.WeekDay, rtcDate.Month, rtcDate.Year,
+			rtcTime.Hours, rtcTime.Minutes, rtcTime.Seconds,
+			(int) moveSensorState, adcVoltage,
+			DHT11_sensorData->temp_int, DHT11_sensorData->temp_dec,
+			DHT11_sensorData->rh_int, DHT11_sensorData->rh_dec);
+
+		if (HAL_ERROR != HAL_UART_Transmit(&huart1, (uint8_t*)currentTimeDateData,
+				strlen(currentTimeDateData), 100))
+		{
+			sentUpdate = true;
+		}
+	}
+	return sentUpdate;
 }
 
 /* USER CODE END PFP */
@@ -162,61 +176,52 @@ int main(void)
   MX_TIM6_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
-  MX_TIM14_Init();
   MX_TIM3_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
-  RTC_TimeTypeDef sTime = {0};
-  RTC_DateTypeDef sDate = {0};
+
   DHT11_Data DHT11_sensorData = {0};
-  char currentTimeDateData[80];
-  /* TIM14 PWM Init */
-  HAL_TIM_PWM_Start(&htim14, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+
+  // TIM14 PWM Init
+
+  HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);
+
   // start adc conversion
-  HAL_ADC_Start_DMA(&hadc, (uint32_t*)adcBuffer, 500);
+  HAL_ADC_Start_DMA(&hadc, (uint32_t*)adcBuffer, ADC_BUFFER_SIZE);
+
   //Init DHT11 Temp and Rh sensor
-  bool dht11_Initalized = false;
-  dht11_Initalized = DHT11_Init(DHT11_GPIO_PORT, DHT11_GPIO_Pin, DHT11_timerID);
+  bool dht11_Initalized = DHT11_Init(DHT11_GPIO_PORT, DHT11_GPIO_Pin, DHT11_timerID);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
+	while (1)
+	{
+	/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+	/* USER CODE BEGIN 3 */
 	  //light ext led
-	  GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
-	  if (true == btnTrigger)
-	  {
-		  //light led
-		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-		  //change PWM period
-		  setPWMPeriod();
-		  //get current rtc time and date
-		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-		  //get current adc conversion
-		  float adcVoltage = ((float)adcBuffer[499] * 3.3) / 4096.0f;
-		  //read Temperature and RH data
-		  if (dht11_Initalized)
-		  {
-			  DHT11_ReadDHT11Data(&DHT11_sensorData);
-		  }
-		  sprintf(currentTimeDateData,
-			  "Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nCounter : %d\nADC Voltage: %.2fV",
-			  sDate.WeekDay, sDate.Month, sDate.Year,
-			  sTime.Hours, sTime.Minutes, sTime.Seconds,
-		  	  (int) moveSensorState, timeCounter, adcVoltage);
-		  HAL_UART_Transmit(&huart1, (uint8_t*)currentTimeDateData, strlen(currentTimeDateData), 100);
-		  timeCounter = 0U;
-		  btnTrigger = false;
+		GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
+		if (true == btnTrigger)
+		{
+			//light led
+			HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+			//change PWM period
+			setPWMPeriod();
 
-	  }
-  }
+			//read Temperature and RH data
+			if (dht11_Initalized)
+			{
+				DHT11_ReadDHT11Data(&DHT11_sensorData);
+			}
+			//get current rtc time and date
+			publishDataBluetooth(currentTimeDateData, &DHT11_sensorData, moveSensorState);
+
+			btnTrigger = false;
+		}
+		HAL_Delay(50);
+	}
   /* USER CODE END 3 */
 }
 
@@ -398,19 +403,19 @@ static void MX_TIM3_Init(void)
   //default pulse - 0 degrees is 0,5ms - 1 tick is 0.1ms, so 0 = 5 pulse
   //1.5ms - 90 degrees, 2.5ms - 180 degrees
   /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 4800 - 1;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 200- 1;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  hTim3_PWM_Servo.Instance = TIM3;
+  hTim3_PWM_Servo.Init.Prescaler = 4800 - 1;
+  hTim3_PWM_Servo.Init.CounterMode = TIM_COUNTERMODE_UP;
+  hTim3_PWM_Servo.Init.Period = 200- 1;
+  hTim3_PWM_Servo.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  hTim3_PWM_Servo.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&hTim3_PWM_Servo) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  if (HAL_TIMEx_MasterConfigSynchronization(&hTim3_PWM_Servo, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -418,15 +423,14 @@ static void MX_TIM3_Init(void)
   servoPwmConfigOC.Pulse = 5;
   servoPwmConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   servoPwmConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &servoPwmConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&hTim3_PWM_Servo, &servoPwmConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
-
+  HAL_TIM_MspPostInit(&hTim3_PWM_Servo);
 }
 
 /**
@@ -442,13 +446,12 @@ static void MX_TIM6_Init(void)
   /* USER CODE END TIM6_Init 0 */
 
   /* USER CODE BEGIN TIM6_Init 1 */
-  //Timer6 configuration - uses sys clock of 48Mhz
-  // with prescaler 48000 - 1
+
   /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 480 - 1;
+  htim6.Init.Prescaler = 4800 - 1;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 1000 - 1;
+  htim6.Init.Period = 1500 - 1;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
@@ -457,51 +460,6 @@ static void MX_TIM6_Init(void)
   /* USER CODE BEGIN TIM6_Init 2 */
 
   /* USER CODE END TIM6_Init 2 */
-
-}
-
-/**
-  * @brief TIM14 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM14_Init(void)
-{
-
-  /* USER CODE BEGIN TIM14_Init 0 */
-
-  /* USER CODE END TIM14_Init 0 */
-
-  /* USER CODE BEGIN TIM14_Init 1 */
-
-  /* USER CODE END TIM14_Init 1 */
-  htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 480 - 1;
-  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 1000 - 1;
-  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim14) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 10;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_ENABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim14, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM14_Init 2 */
-
-  /* USER CODE END TIM14_Init 2 */
-  HAL_TIM_MspPostInit(&htim14);
-
 }
 
 /**
@@ -605,7 +563,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
@@ -616,8 +574,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC2 PC3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  /*Configure GPIO pins : PC3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

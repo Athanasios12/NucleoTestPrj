@@ -50,6 +50,8 @@ DMA_HandleTypeDef hdma_adc;
 
 RTC_HandleTypeDef hrtc;
 
+SPI_HandleTypeDef hspi2;
+
 TIM_HandleTypeDef hTim3_PWM_Servo;
 TIM_HandleTypeDef htim6;
 
@@ -138,14 +140,54 @@ static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_se
 
 static void SPI_Init()
 {
-	//SCLK, MOSI
+	//SPI2 CLK ENABLE
 	__HAL_RCC_SPI2_CLK_ENABLE();
+
+	//SCLK, MOSI
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+
 	GPIO_InitTypeDef gpio;
+	gpio.Pin = GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15; //SCLK, MISO, MOSI
 	gpio.Mode = GPIO_MODE_AF_PP;
-	gpio.Pin = GPIO_PIN_5 | GPIO_PIN_7; // SCK, MOSI
 	gpio.Pull = GPIO_NOPULL;
 	gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(GPIOA, &gpio);
+	gpio.Alternate = GPIO_AF0_SPI2;
+	HAL_GPIO_Init(GPIOB, &gpio);
+
+	//CS - use software Chip select not hardware interrupt
+	//later change to hardware IT
+	gpio.Mode = GPIO_MODE_OUTPUT_PP;
+	gpio.Pin = GPIO_PIN_8; // CS
+	HAL_GPIO_Init(GPIOB, &gpio);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+
+
+	//SPI configuration
+	 hspi2.Instance = SPI2;
+	 hspi2.Init.Mode = SPI_MODE_MASTER;
+	 hspi2.Init.NSS = SPI_NSS_SOFT;
+	 hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;	// 1.5MHz
+	 hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+	 hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+	 hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+	 hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+	 hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	 hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+	 hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	 hspi2.Init.CRCPolynomial = 7;
+	 HAL_SPI_Init(&hspi2);
+}
+
+void SPI_SendReceive()
+{
+	//Set CS to low - start SPI transfer low edge
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	//for now self test
+	uint8_t tx_buff[4]  = {0x00, 0xFF, 0xFF, 0x00};
+	uint8_t rx_buff[4] = {0};
+	//for now blocking transmit, receive
+	HAL_SPI_TransmitReceive(&hspi2, tx_buff, rx_buff, 4, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 }
 
 /* USER CODE END PFP */
@@ -191,6 +233,9 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
+  SPI_Init();
+  //self test
+  SPI_SendReceive();
 
   DHT11_Data DHT11_sensorData = {0};
 
@@ -554,8 +599,6 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel1_IRQn interrupt configuration */
-  //HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  //HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 

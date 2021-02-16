@@ -18,7 +18,6 @@ static void DHT11__delayMicroSec(uint16_t time);
 static void DHT11__SetDataPin(GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_Pin);
 static bool DHT11__initTimer(TIM_TypeDef *timerID);
 static bool DHT11__CheckResponse(void);
-static void ReadDHT11Data(DHT11_Data *sensorData, GPIO_TypeDef *port, uint16_t pin);
 
 
 static void DHT11__delayMicroSec(uint16_t time)

@@ -59,7 +59,6 @@ static void handleGPIO_Pin11_Interrupt();
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc;
 extern TIM_HandleTypeDef htim6;
-extern TIM_HandleTypeDef htim14;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */

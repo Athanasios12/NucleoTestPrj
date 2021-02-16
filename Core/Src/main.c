@@ -60,6 +60,7 @@ UART_HandleTypeDef huart2;
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 
 volatile bool btnTrigger = false;
+volatile bool readRTC = false;
 uint16_t adcBuffer[500];
 char currentTimeDateData[150];
 
@@ -90,13 +91,13 @@ static void MX_ADC_Init(void);
 static void setPWMPeriod()
 {
 	static uint16_t servoPeriod = 5U;
-	if (servoPeriod > 25)
+	if (servoPeriod < 25)
 	{
-		servoPeriod = 5U;
+		servoPeriod += 5U;
 	}
 	else
 	{
-		servoPeriod += 5;
+		servoPeriod = 5;
 	}
 	servoPwmConfigOC.Pulse = servoPeriod;
 	HAL_TIM_PWM_ConfigChannel(&hTim3_PWM_Servo, &servoPwmConfigOC, TIM_CHANNEL_2);
@@ -135,6 +136,18 @@ static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_se
 	return sentUpdate;
 }
 
+static void SPI_Init()
+{
+	//SCLK, MOSI
+	__HAL_RCC_SPI2_CLK_ENABLE();
+	GPIO_InitTypeDef gpio;
+	gpio.Mode = GPIO_MODE_AF_PP;
+	gpio.Pin = GPIO_PIN_5 | GPIO_PIN_7; // SCK, MOSI
+	gpio.Pull = GPIO_NOPULL;
+	gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(GPIOA, &gpio);
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -147,7 +160,6 @@ static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_se
   * @brief  The application entry point.
   * @retval int
   */
-
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -182,8 +194,6 @@ int main(void)
 
   DHT11_Data DHT11_sensorData = {0};
 
-  // TIM14 PWM Init
-
   HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);
 
   // start adc conversion
@@ -191,15 +201,21 @@ int main(void)
 
   //Init DHT11 Temp and Rh sensor
   bool dht11_Initalized = DHT11_Init(DHT11_GPIO_PORT, DHT11_GPIO_Pin, DHT11_timerID);
+
+   //read Temperature and RH data
+  if (dht11_Initalized)
+  {
+	 DHT11_ReadDHT11Data(&DHT11_sensorData); //set to do it every 2min - not very volatile
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1)
 	{
-	/* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-	/* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 	  //light ext led
 		GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
@@ -210,17 +226,11 @@ int main(void)
 			//change PWM period
 			setPWMPeriod();
 
-			//read Temperature and RH data
-			if (dht11_Initalized)
-			{
-				DHT11_ReadDHT11Data(&DHT11_sensorData);
-			}
 			//get current rtc time and date
 			publishDataBluetooth(currentTimeDateData, &DHT11_sensorData, moveSensorState);
 
 			btnTrigger = false;
 		}
-		HAL_Delay(50);
 	}
   /* USER CODE END 3 */
 }
@@ -460,6 +470,7 @@ static void MX_TIM6_Init(void)
   /* USER CODE BEGIN TIM6_Init 2 */
 
   /* USER CODE END TIM6_Init 2 */
+
 }
 
 /**
@@ -568,8 +579,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 PC11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_11;
+  /*Configure GPIO pins : PC11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);

@@ -59,10 +59,13 @@ static void handleGPIO_Pin11_Interrupt();
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc;
 extern TIM_HandleTypeDef htim6;
+extern TIM_HandleTypeDef htim14;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
+extern volatile bool readRTC;
 volatile bool btnPressed = false;
+volatile bool timerElapsed = false;
 extern volatile bool btnTrigger;
 /* USER CODE END EV */
 
@@ -220,13 +223,25 @@ void USART2_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (TIM6 == htim->Instance)
+	{
+		if (btnPressed)
+		{
+			timerElapsed = true;
+			HAL_TIM_Base_Stop_IT(htim);
+		}
+	}
+}
+
 static void handleGPIO_Pin11_Interrupt()
 {
 	//Use timer to handle debouncing
 	if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_11))
 	{
 		uint8_t pin11State = (uint8_t)HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11);
-		HAL_TIM_StateTypeDef state = HAL_TIM_Base_GetState(&htim6);
+
 		if (GPIO_PIN_SET == pin11State)
 		{
 			//rising edge
@@ -239,15 +254,14 @@ static void handleGPIO_Pin11_Interrupt()
 		else if (GPIO_PIN_RESET == pin11State)
 		{
 			//falling edge
-			uint32_t count = __HAL_TIM_GET_COUNTER(&htim6);
-			if ((HAL_TIM_STATE_TIMEOUT == state) &&
-				(true == btnPressed))
+			if (timerElapsed && btnPressed)
 			{
 				//debouncing timer time out, can count this as button press
 				btnTrigger = true;
 			}
-			HAL_TIM_Base_Stop_IT(&htim6);
 			btnPressed = false;
+			timerElapsed = false;
+			HAL_TIM_Base_Stop_IT(&htim6);
 		}
 	}
 }

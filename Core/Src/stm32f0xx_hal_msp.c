@@ -61,7 +61,7 @@ extern DMA_HandleTypeDef hdma_adc;
 /* USER CODE END 0 */
                         
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-                                        /**
+                    /**
   * Initializes the Global MSP.
   */
 void HAL_MspInit(void)
@@ -262,6 +262,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
   /* USER CODE BEGIN TIM3_MspPostInit 0 */
 
   /* USER CODE END TIM3_MspPostInit 0 */
+  
     __HAL_RCC_GPIOC_CLK_ENABLE();
     /**TIM3 GPIO Configuration    
     PC7     ------> TIM3_CH2 
@@ -277,6 +278,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
 
   /* USER CODE END TIM3_MspPostInit 1 */
   }
+
 }
 /**
 * @brief TIM_PWM MSP De-Initialization
@@ -322,6 +324,7 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
 
   /* USER CODE END TIM6_MspDeInit 1 */
   }
+
 }
 
 /**

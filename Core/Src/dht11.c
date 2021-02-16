@@ -110,14 +110,6 @@ inline void set_Pin_Input(GPIO_TypeDef *port, uint16_t pin)
 
 }
 
-static void ReadDHT11Data(DHT11_Data *sensorData, GPIO_TypeDef *port, uint16_t pin)
-{
-	if (NULL != sensorData)
-	{
-
-	}
-}
-
 bool DHT11_Init(GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_Pin, TIM_TypeDef *timerID)
 {
 	if (false == DHT11__Initalized)

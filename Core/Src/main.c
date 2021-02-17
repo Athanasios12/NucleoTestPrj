@@ -200,6 +200,10 @@ static void SPI_Init()
 	{
 		Error_Handler();
 	}
+
+    /* SPI2 interrupt Init */
+    HAL_NVIC_SetPriority(SPI2_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(SPI2_IRQn);
 }
 
 
@@ -211,31 +215,31 @@ void SPI_CommSM()
 			if (SPI_TransmitData)
 			{
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_BUFF_SIZE);
-				SPI_SM_State = SPI_TX_STATE;
-				spi_tx_done = false;
 				SPI_TransmitData = false;
+				SPI_SM_State = SPI_TX_STATE;
+				HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_BUFF_SIZE);
 			}
 			else if (SPI_ReceiveData)
 			{
 				//when the tx is done
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_BUFF_SIZE);
 				SPI_SM_State = SPI_RX_STATE;
-				spi_rx_done = false;
 				SPI_ReceiveData = false;
+				HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_BUFF_SIZE);
 			}
 			break;
 		case SPI_RX_STATE:
 			if (spi_rx_done)
 			{
 				SPI_SM_State = SPI_IDLE_STATE;
+				spi_rx_done = false;
 			}
 			break;
 		case SPI_TX_STATE:
 			if (spi_tx_done)
 			{
 				SPI_SM_State = SPI_IDLE_STATE;
+				spi_tx_done = false;
 			}
 			break;
 	}
@@ -285,6 +289,8 @@ int main(void)
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
   SPI_Init();
+  HAL_SPI_Transmit(&hspi2, spi_tx_buff, SPI_BUFF_SIZE, HAL_MAX_DELAY);
+  HAL_SPI_Receive(&hspi2, spi_rx_buff, SPI_BUFF_SIZE, HAL_MAX_DELAY);
 
   DHT11_Data DHT11_sensorData = {0};
 
@@ -329,6 +335,7 @@ int main(void)
 			SPI_ReceiveData = true;
 			btnTrigger = false;
 		}
+		HAL_Delay(20);
 	}
   /* USER CODE END 3 */
 }

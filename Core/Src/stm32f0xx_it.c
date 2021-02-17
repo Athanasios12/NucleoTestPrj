@@ -58,14 +58,17 @@ static void handleGPIO_Pin11_Interrupt();
 
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc;
+extern SPI_HandleTypeDef hspi2;
 extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 extern volatile bool readRTC;
+extern volatile bool btnTrigger;
+extern volatile bool spi_tx_done;
+extern volatile bool spi_rx_done;
 volatile bool btnPressed = false;
 volatile bool timerElapsed = false;
-extern volatile bool btnTrigger;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -193,6 +196,20 @@ void TIM6_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles SPI2 global interrupt.
+  */
+void SPI2_IRQHandler(void)
+{
+  /* USER CODE BEGIN SPI2_IRQn 0 */
+
+  /* USER CODE END SPI2_IRQn 0 */
+  HAL_SPI_IRQHandler(&hspi2);
+  /* USER CODE BEGIN SPI2_IRQn 1 */
+
+  /* USER CODE END SPI2_IRQn 1 */
+}
+
+/**
   * @brief This function handles USART1 global interrupt.
   */
 void USART1_IRQHandler(void)
@@ -231,6 +248,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			timerElapsed = true;
 			HAL_TIM_Base_Stop_IT(htim);
 		}
+	}
+}
+
+// This is called when SPI transmit is done
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+	if (SPI2 == hspi->Instance)
+	{
+		// Set CS pin to high and raise flag
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+		spi_tx_done = true;
+	}
+}
+
+// This is called when SPI receive is done
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+	if (SPI2 == hspi->Instance)
+	{
+		// Set CS pin to high and raise flag
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+		spi_rx_done = true;
 	}
 }
 

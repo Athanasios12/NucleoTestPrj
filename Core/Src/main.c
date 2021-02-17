@@ -61,14 +61,34 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 
+typedef enum
+{
+	SPI_IDLE_STATE = 0,
+	SPI_RX_STATE,
+	SPI_TX_STATE
+} SPI_State;
+
+SPI_State SPI_SM_State = SPI_IDLE_STATE;
+uint8_t spi_tx_buff[4]  = {0x00, 0xFF, 0xFF, 0x00};
+uint8_t spi_rx_buff[4] = {0};
+volatile bool spi_tx_done = false;
+volatile bool spi_rx_done = false;
+bool SPI_TransmitData = false;
+bool SPI_ReceiveData = false;
+
 volatile bool btnTrigger = false;
 volatile bool readRTC = false;
+
 uint16_t adcBuffer[500];
+
 char currentTimeDateData[150];
+
+
 
 #define ADC_BUFFER_SIZE 500
 #define ADC_MAX_VOLTAGE 3.3f
 #define ADC_12BIT_CHANNEL_RESOLUTION 4096.0f
+#define SPI_BUFF_SIZE 4
 
 //DHT 11 Sensor
 TIM_TypeDef *DHT11_timerID = TIM1;
@@ -161,33 +181,64 @@ static void SPI_Init()
 	HAL_GPIO_Init(GPIOB, &gpio);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 
-
 	//SPI configuration
-	 hspi2.Instance = SPI2;
-	 hspi2.Init.Mode = SPI_MODE_MASTER;
-	 hspi2.Init.NSS = SPI_NSS_SOFT;
-	 hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;	// 1.5MHz
-	 hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-	 hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-	 hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-	 hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-	 hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-	 hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-	 hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-	 hspi2.Init.CRCPolynomial = 7;
-	 HAL_SPI_Init(&hspi2);
+	hspi2.Instance = SPI2;
+	hspi2.Init.Mode = SPI_MODE_MASTER;
+	hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi2.Init.NSS = SPI_NSS_SOFT;
+	hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;// 1.5MHz
+	hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi2.Init.CRCPolynomial = 7;
+	hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+	hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+	if (HAL_SPI_Init(&hspi2) != HAL_OK)
+	{
+		Error_Handler();
+	}
 }
 
-void SPI_SendReceive()
+
+void SPI_CommSM()
 {
-	//Set CS to low - start SPI transfer low edge
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-	//for now self test
-	uint8_t tx_buff[4]  = {0x00, 0xFF, 0xFF, 0x00};
-	uint8_t rx_buff[4] = {0};
-	//for now blocking transmit, receive
-	HAL_SPI_TransmitReceive(&hspi2, tx_buff, rx_buff, 4, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+	switch(SPI_SM_State)
+	{
+		case SPI_IDLE_STATE:
+			if (SPI_TransmitData)
+			{
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+				HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_BUFF_SIZE);
+				SPI_SM_State = SPI_TX_STATE;
+				spi_tx_done = false;
+				SPI_TransmitData = false;
+			}
+			else if (SPI_ReceiveData)
+			{
+				//when the tx is done
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+				HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_BUFF_SIZE);
+				SPI_SM_State = SPI_RX_STATE;
+				spi_rx_done = false;
+				SPI_ReceiveData = false;
+			}
+			break;
+		case SPI_RX_STATE:
+			if (spi_rx_done)
+			{
+				SPI_SM_State = SPI_IDLE_STATE;
+			}
+			break;
+		case SPI_TX_STATE:
+			if (spi_tx_done)
+			{
+				SPI_SM_State = SPI_IDLE_STATE;
+			}
+			break;
+	}
 }
 
 /* USER CODE END PFP */
@@ -234,8 +285,6 @@ int main(void)
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
   SPI_Init();
-  //self test
-  SPI_SendReceive();
 
   DHT11_Data DHT11_sensorData = {0};
 
@@ -264,6 +313,7 @@ int main(void)
 	  //light ext led
 		GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
+		SPI_CommSM();
 		if (true == btnTrigger)
 		{
 			//light led
@@ -273,7 +323,10 @@ int main(void)
 
 			//get current rtc time and date
 			publishDataBluetooth(currentTimeDateData, &DHT11_sensorData, moveSensorState);
-
+			//send SPI - the MCU will be in future a slave that will be asked by the HMI ECU for
+			//spi data transmit, for now the testing purposes the spi will send when button pressed
+			SPI_TransmitData = true;
+			SPI_ReceiveData = true;
 			btnTrigger = false;
 		}
 	}

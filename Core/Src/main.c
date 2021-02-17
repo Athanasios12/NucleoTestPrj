@@ -28,6 +28,7 @@
 #include <string.h>
 #include "dht11.h"
 #include <stdlib.h>
+#include "SPI_Handler.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,8 +51,6 @@ DMA_HandleTypeDef hdma_adc;
 
 RTC_HandleTypeDef hrtc;
 
-SPI_HandleTypeDef hspi2;
-
 TIM_HandleTypeDef hTim3_PWM_Servo;
 TIM_HandleTypeDef htim6;
 
@@ -61,21 +60,6 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 TIM_OC_InitTypeDef servoPwmConfigOC = {0};
 
-typedef enum
-{
-	SPI_IDLE_STATE = 0,
-	SPI_RX_STATE,
-	SPI_TX_STATE
-} SPI_State;
-
-SPI_State SPI_SM_State = SPI_IDLE_STATE;
-uint8_t spi_tx_buff[4]  = {0x00, 0xFF, 0xFF, 0x00};
-uint8_t spi_rx_buff[4] = {0};
-volatile bool spi_tx_done = false;
-volatile bool spi_rx_done = false;
-bool SPI_TransmitData = false;
-bool SPI_ReceiveData = false;
-
 volatile bool btnTrigger = false;
 volatile bool readRTC = false;
 
@@ -83,12 +67,9 @@ uint16_t adcBuffer[500];
 
 char currentTimeDateData[150];
 
-
-
 #define ADC_BUFFER_SIZE 500
 #define ADC_MAX_VOLTAGE 3.3f
 #define ADC_12BIT_CHANNEL_RESOLUTION 4096.0f
-#define SPI_BUFF_SIZE 4
 
 //DHT 11 Sensor
 TIM_TypeDef *DHT11_timerID = TIM1;
@@ -109,6 +90,10 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
+static void setPWMPeriod();
+static bool publishDataBluetooth(char *currentTimeDateData,
+		DHT11_Data *DHT11_sensorData, int moveSensorState);
+
 
 static void setPWMPeriod()
 {
@@ -126,7 +111,8 @@ static void setPWMPeriod()
 	HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);
 }
 
-static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_sensorData, int moveSensorState)
+static bool publishDataBluetooth(char *currentTimeDateData,
+		DHT11_Data *DHT11_sensorData, int moveSensorState)
 {
 	bool sentUpdate = false;
 	if (currentTimeDateData && DHT11_sensorData)
@@ -141,8 +127,10 @@ static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_se
 			/ ADC_12BIT_CHANNEL_RESOLUTION;
 
 		sprintf(currentTimeDateData,
-			"Date: %2d.%2d.202%d Time: %d:%d:%d\nMoveSensor : %d\nADC Voltage: %.2fV\n"
-			"Temperature: %d.%d  Humidity: %d.%d\n",
+			"Date: %2d.%2d.202%d Time: %d:%d:%d\n"
+			"MoveSensor : %d\n"
+			"ADC Voltage: %.2fV\n"
+			"Temperature: %d.%d Humidity: %d.%d\n",
 			rtcDate.WeekDay, rtcDate.Month, rtcDate.Year,
 			rtcTime.Hours, rtcTime.Minutes, rtcTime.Seconds,
 			(int) moveSensorState, adcVoltage,
@@ -156,93 +144,6 @@ static bool publishDataBluetooth(char *currentTimeDateData, DHT11_Data *DHT11_se
 		}
 	}
 	return sentUpdate;
-}
-
-static void SPI_Init()
-{
-	//SPI2 CLK ENABLE
-	__HAL_RCC_SPI2_CLK_ENABLE();
-
-	//SCLK, MOSI
-	__HAL_RCC_GPIOB_CLK_ENABLE();
-
-	GPIO_InitTypeDef gpio;
-	gpio.Pin = GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15; //SCLK, MISO, MOSI
-	gpio.Mode = GPIO_MODE_AF_PP;
-	gpio.Pull = GPIO_NOPULL;
-	gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-	gpio.Alternate = GPIO_AF0_SPI2;
-	HAL_GPIO_Init(GPIOB, &gpio);
-
-	//CS - use software Chip select not hardware interrupt
-	//later change to hardware IT
-	gpio.Mode = GPIO_MODE_OUTPUT_PP;
-	gpio.Pin = GPIO_PIN_8; // CS
-	HAL_GPIO_Init(GPIOB, &gpio);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-
-	//SPI configuration
-	hspi2.Instance = SPI2;
-	hspi2.Init.Mode = SPI_MODE_MASTER;
-	hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-	hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-	hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-	hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-	hspi2.Init.NSS = SPI_NSS_SOFT;
-	hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;// 1.5MHz
-	hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-	hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-	hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-	hspi2.Init.CRCPolynomial = 7;
-	hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-	hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-	if (HAL_SPI_Init(&hspi2) != HAL_OK)
-	{
-		Error_Handler();
-	}
-
-    /* SPI2 interrupt Init */
-    HAL_NVIC_SetPriority(SPI2_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(SPI2_IRQn);
-}
-
-
-void SPI_CommSM()
-{
-	switch(SPI_SM_State)
-	{
-		case SPI_IDLE_STATE:
-			if (SPI_TransmitData)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				SPI_TransmitData = false;
-				SPI_SM_State = SPI_TX_STATE;
-				HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_BUFF_SIZE);
-			}
-			else if (SPI_ReceiveData)
-			{
-				//when the tx is done
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				SPI_SM_State = SPI_RX_STATE;
-				SPI_ReceiveData = false;
-				HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_BUFF_SIZE);
-			}
-			break;
-		case SPI_RX_STATE:
-			if (spi_rx_done)
-			{
-				SPI_SM_State = SPI_IDLE_STATE;
-				spi_rx_done = false;
-			}
-			break;
-		case SPI_TX_STATE:
-			if (spi_tx_done)
-			{
-				SPI_SM_State = SPI_IDLE_STATE;
-				spi_tx_done = false;
-			}
-			break;
-	}
 }
 
 /* USER CODE END PFP */
@@ -288,9 +189,14 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
-  SPI_Init();
-  HAL_SPI_Transmit(&hspi2, spi_tx_buff, SPI_BUFF_SIZE, HAL_MAX_DELAY);
-  HAL_SPI_Receive(&hspi2, spi_rx_buff, SPI_BUFF_SIZE, HAL_MAX_DELAY);
+  bool spi_comm_on = false;
+  if (SPI_Config())
+  {
+	  if (SPI_Init())
+	  {
+		  spi_comm_on = true;
+	  }
+  }
 
   DHT11_Data DHT11_sensorData = {0};
 
@@ -319,7 +225,6 @@ int main(void)
 	  //light ext led
 		GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
-		SPI_CommSM();
 		if (true == btnTrigger)
 		{
 			//light led
@@ -331,8 +236,6 @@ int main(void)
 			publishDataBluetooth(currentTimeDateData, &DHT11_sensorData, moveSensorState);
 			//send SPI - the MCU will be in future a slave that will be asked by the HMI ECU for
 			//spi data transmit, for now the testing purposes the spi will send when button pressed
-			SPI_TransmitData = true;
-			SPI_ReceiveData = true;
 			btnTrigger = false;
 		}
 		HAL_Delay(20);

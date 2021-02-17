@@ -1,4 +1,5 @@
 "Core/Src/ADCHandler.o"
+"Core/Src/SPI_Handler.o"
 "Core/Src/dht11.o"
 "Core/Src/main.o"
 "Core/Src/stm32f0xx_hal_msp.o"

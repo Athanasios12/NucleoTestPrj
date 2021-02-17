@@ -251,28 +251,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-// This is called when SPI transmit is done
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-	if (SPI2 == hspi->Instance)
-	{
-		// Set CS pin to high and raise flag
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-		spi_tx_done = true;
-	}
-}
-
-// This is called when SPI receive is done
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-	if (SPI2 == hspi->Instance)
-	{
-		// Set CS pin to high and raise flag
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-		spi_rx_done = true;
-	}
-}
-
 static void handleGPIO_Pin11_Interrupt()
 {
 	//Use timer to handle debouncing

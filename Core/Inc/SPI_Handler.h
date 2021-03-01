@@ -22,7 +22,7 @@ typedef enum
 
 void SPI_CommSM();
 bool SPI_Config();
-bool SPI_Init();
+void SPI_Init();
 
 
 #endif /* INC_SPI_HANDLER_H_ */

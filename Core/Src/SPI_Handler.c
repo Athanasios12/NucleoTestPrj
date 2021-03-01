@@ -11,21 +11,20 @@
 SPI_HandleTypeDef hspi2;
 static SPI_State SPI_SM_State = SPI_OFF;
 static uint8_t spi_buff[SPI_BUFF_SIZE] = {0};
+const char spi_init_buff[] = "SPI NUCLEO INIT";
+const char spi_comm_established[] = "SPI RPI PRESENT";
 
 volatile bool spi_tx_done = false;
 volatile bool spi_rx_done = false;
+volatile bool commEstablished = false;
 
-bool SPI_TransmitData = false;
-bool SPI_ReceiveData = false;
-
+static bool checkIfConnectedRpi(void);
 
 // This is called when SPI transmit is done
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
 	if (SPI2 == hspi->Instance)
 	{
-		// Set CS pin to high and raise flag
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 		spi_tx_done = true;
 	}
 }
@@ -35,8 +34,6 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
 {
 	if (SPI2 == hspi->Instance)
 	{
-		// Set CS pin to high and raise flag
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 		spi_rx_done = true;
 	}
 }
@@ -60,21 +57,15 @@ bool SPI_Config()
 		gpio.Alternate = GPIO_AF0_SPI2;
 		HAL_GPIO_Init(GPIOB, &gpio);
 
-		//CS - use software Chip select not hardware interrupt
-		//later change to hardware IT
-		gpio.Mode = GPIO_MODE_OUTPUT_PP;
-		gpio.Pin = GPIO_PIN_8; // CS
-		HAL_GPIO_Init(GPIOB, &gpio);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 
 		//SPI configuration
 		hspi2.Instance = SPI2;
-		hspi2.Init.Mode = SPI_MODE_MASTER;
+		hspi2.Init.Mode = SPI_MODE_SLAVE;
 		hspi2.Init.Direction = SPI_DIRECTION_2LINES;
 		hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
 		hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
 		hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-		hspi2.Init.NSS = SPI_NSS_SOFT;
+		hspi2.Init.NSS = SPI_NSS_HARD_INPUT;
 		hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;// 1.5MHz
 		hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
 		hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
@@ -96,59 +87,42 @@ bool SPI_Config()
 	return spi_config_success;
 }
 
-bool SPI_Init()
+void SPI_Init()
 {
-	bool spi_comm_initalized = false;
-	if (SPI_INIT == SPI_SM_State)
+	if (!commEstablished)
 	{
-		//For now set the STM MCU as SPI master in comm with Rpi
-		//Initial communication with the RPI - blocking, check if Rpi Present
-		uint8_t spi_init_buff[] = "SPI COMM INIT";
-		uint8_t spi_comm_established[] = "SPI RPI PRESENT";
-
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-		HAL_SPI_Transmit(&hspi2, spi_init_buff, strlen(spi_init_buff), HAL_MAX_DELAY);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-		HAL_SPI_Transmit(&hspi2, spi_buff, strlen(spi_comm_established), HAL_MAX_DELAY);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-
-		if (0 == strncmp(spi_buff, spi_comm_established, strlen(spi_comm_established)))
-		{
-			SPI_SM_State = SPI_IDLE;
-			spi_comm_initalized = true;
-		}
+		SPI_SM_State = SPI_RX;
+		HAL_SPI_Receive_IT(&hspi2, spi_buff, SPI_BUFF_SIZE);
 	}
-	return spi_comm_initalized;
 }
 
-void SPI_CommSM()
+static void SPI_HandleRxData()
+{
+	//analyze received data
+}
+
+void SPI_CommSM() // called cyclicly in main
 {
 	switch(SPI_SM_State)
 	{
 		case SPI_IDLE:
-			if (SPI_TransmitData)
-			{
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				SPI_TransmitData = false;
-				SPI_SM_State = SPI_TX;
-				HAL_SPI_Transmit_IT(&hspi2, spi_buff, SPI_BUFF_SIZE);
-			}
-			else if (SPI_ReceiveData)
-			{
-				//when the tx is done
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-				SPI_SM_State = SPI_RX;
-				SPI_ReceiveData = false;
-				HAL_SPI_Receive_IT(&hspi2, spi_buff, SPI_BUFF_SIZE);
-			}
 			break;
 		case SPI_RX:
 			if (spi_rx_done)
 			{
 				SPI_SM_State = SPI_IDLE;
 				spi_rx_done = false;
+				if (!commEstablished)
+				{
+					//check rx data if connected to RPi
+					commEstablished = checkIfConnectedRpi();
+					if (commEstablished)
+					{
+						SPI_SM_State = SPI_TX;
+						HAL_SPI_Transmit_IT(&hspi2, (uint8_t*)spi_init_buff, (uint16_t)strlen(spi_init_buff));
+					}
+				}
+				SPI_HandleRxData();
 			}
 			break;
 		case SPI_TX:
@@ -161,4 +135,20 @@ void SPI_CommSM()
 		default:
 			break;
 	}
+}
+
+static bool checkIfConnectedRpi(void)
+{
+	if (!commEstablished)
+	{
+		if (0 == strncmp(spi_buff, spi_comm_established, strlen(spi_comm_established)))
+		{
+			return true;
+		}
+	}
+	else
+	{
+		return true;
+	}
+	return false;
 }

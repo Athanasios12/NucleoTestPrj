@@ -189,13 +189,9 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
-  bool spi_comm_on = false;
   if (SPI_Config())
   {
-	  if (SPI_Init())
-	  {
-		  spi_comm_on = true;
-	  }
+	 SPI_Init();
   }
 
   DHT11_Data DHT11_sensorData = {0};

@@ -76,6 +76,9 @@ TIM_TypeDef *DHT11_timerID = TIM1;
 GPIO_TypeDef* DHT11_GPIO_PORT = GPIOC;
 uint16_t DHT11_GPIO_Pin = GPIO_PIN_0;
 
+bool RpiDateTimeSynced = false;
+bool RTC_Initalized = false;
+
 
 /* USER CODE END PV */
 
@@ -83,7 +86,7 @@ uint16_t DHT11_GPIO_Pin = GPIO_PIN_0;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_RTC_Init(void);
+static void MX_RTC_Init(SPI_RxDateTime *initDateTime);
 static void MX_TIM6_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
@@ -91,6 +94,7 @@ static void MX_TIM3_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
 static void setPWMPeriod();
+static void HandleSpiDataTransfer();
 static bool publishDataBluetooth(char *currentTimeDateData,
 		DHT11_Data *DHT11_sensorData, int moveSensorState);
 
@@ -146,6 +150,34 @@ static bool publishDataBluetooth(char *currentTimeDateData,
 	return sentUpdate;
 }
 
+static void HandleSpiDataTransfer()
+{
+	SPI_State state = SPI_getState();
+	if (SPI_IDLE == state)
+	{
+		if (!RpiDateTimeSynced)
+		{
+			SPI_RequestDateTimeFromRpi();
+		}
+		else
+		{
+			//cyclicly send Sensor State
+			//check rtc time difference, update
+			SPI_TxSensorData sensorData = {0};
+			SPI_PrepareSensorDataTransmit(&sensorData);
+		}
+	}
+	else if (SPI_RX_DATA_AVAILABLE == state)
+	{
+		if (!RpiDateTimeSynced)
+		{
+			SPI_RxDateTime rxDateTime = {0};
+			RpiDateTimeSynced = SPI_ReadTransmitData(&rxDateTime);
+			MX_RTC_Init(&rxDateTime);
+		}
+	}
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -182,16 +214,17 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_RTC_Init();
   MX_TIM6_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
+  bool spi_initialized = false;
   if (SPI_Config())
   {
 	 SPI_Init();
+	 spi_initialized = SPI_RequestDateTimeFromRpi();
   }
 
   DHT11_Data DHT11_sensorData = {0};
@@ -221,6 +254,13 @@ int main(void)
 	  //light ext led
 		GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_3, moveSensorState);
+
+		if (spi_initialized)
+		{
+			SPI_CommSM();
+			HandleSpiDataTransfer();
+		}
+		//Handle button interrupts
 		if (true == btnTrigger)
 		{
 			//light led
@@ -230,11 +270,11 @@ int main(void)
 
 			//get current rtc time and date
 			publishDataBluetooth(currentTimeDateData, &DHT11_sensorData, moveSensorState);
-			//send SPI - the MCU will be in future a slave that will be asked by the HMI ECU for
+			//send SPI - the MCU will be a slave that will be asked by the HMI ECU for
 			//spi data transmit, for now the testing purposes the spi will send when button pressed
 			btnTrigger = false;
 		}
-		HAL_Delay(20);
+		HAL_Delay(50);
 	}
   /* USER CODE END 3 */
 }
@@ -341,7 +381,7 @@ static void MX_ADC_Init(void)
   * @param None
   * @retval None
   */
-static void MX_RTC_Init(void)
+static void MX_RTC_Init(SPI_RxDateTime *initDateTime)
 {
 
   /* USER CODE BEGIN RTC_Init 0 */
@@ -350,6 +390,14 @@ static void MX_RTC_Init(void)
 
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+
+  sDate.Year = initDateTime->year;
+  sDate.Month = initDateTime->month;
+  sDate.WeekDay = initDateTime->day;
+  sTime.Hours = initDateTime->hour;
+  sTime.Minutes = initDateTime->minute;
+  sTime.Seconds = initDateTime->second;
+
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -363,9 +411,15 @@ static void MX_RTC_Init(void)
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  if (HAL_RTC_Init(&hrtc) == HAL_OK)
   {
-    Error_Handler();
+	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) == HAL_OK)
+	{
+		if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) == HAL_OK)
+		{
+			RTC_Initalized = true;
+		}
+	}
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
@@ -374,24 +428,11 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date 
   */
-  sTime.Hours = 0;
-  sTime.Minutes = 0;
-  sTime.Seconds = 0;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-  sDate.Month = RTC_MONTH_JANUARY;
-  sDate.Date = 1;
-  sDate.Year = 0;
 
-  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
-  {
-    Error_Handler();
-  }
+
+
+
+
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */

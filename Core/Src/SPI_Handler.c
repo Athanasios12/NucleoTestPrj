@@ -8,15 +8,29 @@
 #include "stm32f0xx_hal.h"
 #include <string.h>
 
+typedef enum
+{
+	RPI_INIT,
+	STM_CONNECTED_ACK,
+	RPI_GET_DATE_TIME,
+	SEND_SENSOR_DATA
+} SPI_Command;
+
 SPI_HandleTypeDef hspi2;
 static SPI_State SPI_SM_State = SPI_OFF;
-static uint8_t spi_buff[SPI_BUFF_SIZE] = {0};
-const char spi_init_buff[] = "SPI NUCLEO INIT";
-const char spi_comm_established[] = "SPI RPI PRESENT";
+static uint8_t spi_tx_buff[SPI_TX_BUFF_SIZE] = {0};
+static uint8_t spi_rx_buff[SPI_RX_BUFF_SIZE] = {0};
+const char* spi_commands[] =
+{
+	"RPI_INI",
+	"STM_ACK",
+	"STM_GET",
+	"RPI_GET"
+};
 
 volatile bool spi_tx_done = false;
 volatile bool spi_rx_done = false;
-volatile bool commEstablished = false;
+bool spi_commEstablished = false;
 
 static bool checkIfConnectedRpi(void);
 
@@ -36,6 +50,11 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
 	{
 		spi_rx_done = true;
 	}
+}
+
+SPI_State SPI_getState()
+{
+	return SPI_SM_State;
 }
 
 bool SPI_Config()
@@ -89,16 +108,61 @@ bool SPI_Config()
 
 void SPI_Init()
 {
-	if (!commEstablished)
+	if (!spi_commEstablished)
 	{
 		SPI_SM_State = SPI_RX;
-		HAL_SPI_Receive_IT(&hspi2, spi_buff, SPI_BUFF_SIZE);
+		HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_RX_BUFF_SIZE);
 	}
 }
 
-static void SPI_HandleRxData()
+bool SPI_PrepareSensorDataTransmit(SPI_TxSensorData *txData)
 {
-	//analyze received data
+	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
+	{
+		memcpy((uint8_t*)txData, spi_tx_buff, sizeof(SPI_TxSensorData));
+		SPI_SM_State = SPI_TX;
+		HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
+		return true;
+	}
+	return false;
+}
+
+bool SPI_PrepareReadTransmitData()
+{
+	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
+	{
+		SPI_SM_State = SPI_RX;
+		if (HAL_OK == HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_RX_BUFF_SIZE))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool SPI_ReadTransmitData(SPI_RxDateTime *rxData)
+{
+	if (SPI_SM_State == SPI_RX_DATA_AVAILABLE)
+	{
+		memcpy((uint8_t*)rxData, spi_rx_buff, sizeof(SPI_RxDateTime));
+		//only after data was read the state changes to idle again and enables starting next read
+		SPI_SM_State = SPI_IDLE;
+		return true;
+	}
+	return false;
+}
+
+bool SPI_RequestDateTimeFromRpi()
+{
+	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
+	{
+		memcpy(spi_commands[RPI_GET_DATE_TIME], spi_tx_buff,
+			strlen(spi_commands[RPI_GET_DATE_TIME]));
+		SPI_SM_State = SPI_TX;
+		HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
+		return true;
+	}
+	return false;
 }
 
 void SPI_CommSM() // called cyclicly in main
@@ -110,20 +174,27 @@ void SPI_CommSM() // called cyclicly in main
 		case SPI_RX:
 			if (spi_rx_done)
 			{
-				SPI_SM_State = SPI_IDLE;
 				spi_rx_done = false;
-				if (!commEstablished)
+				if (!spi_commEstablished)
 				{
+					SPI_SM_State = SPI_IDLE;
 					//check rx data if connected to RPi
-					commEstablished = checkIfConnectedRpi();
-					if (commEstablished)
+					spi_commEstablished = checkIfConnectedRpi();
+					if (spi_commEstablished)
 					{
 						SPI_SM_State = SPI_TX;
-						HAL_SPI_Transmit_IT(&hspi2, (uint8_t*)spi_init_buff, (uint16_t)strlen(spi_init_buff));
+						memcpy(spi_commands[STM_CONNECTED_ACK], spi_tx_buff,
+							strlen(spi_commands[STM_CONNECTED_ACK]));
+						HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 					}
 				}
-				SPI_HandleRxData();
+				else
+				{
+					SPI_SM_State = SPI_RX_DATA_AVAILABLE;
+				}
 			}
+			break;
+		case SPI_RX_DATA_AVAILABLE:
 			break;
 		case SPI_TX:
 			if (spi_tx_done)
@@ -139,9 +210,10 @@ void SPI_CommSM() // called cyclicly in main
 
 static bool checkIfConnectedRpi(void)
 {
-	if (!commEstablished)
+	if (!spi_commEstablished)
 	{
-		if (0 == strncmp(spi_buff, spi_comm_established, strlen(spi_comm_established)))
+		if (strncmp(spi_tx_buff, spi_commands[RPI_INIT],
+			strlen(spi_commands[RPI_INIT])))
 		{
 			return true;
 		}

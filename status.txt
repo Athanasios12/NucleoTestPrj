@@ -1,0 +1,9 @@
+1. SPI - modyfikacja drivera domyslnego - potega 2 jako mnoznik czestotliwosci spi,
+nie moze byc bo jest nie kompatybolna a Nucleo, istawic na 1.5 Mhz.
+Na necie jest jak zmodyfikowac modul kernela
+
+2. Spi slave -nucleo, SPi master -RPI. Przedebugowac, IT na nucleo tylkko do ustawienia flagi
+zeby cyclic check SPI_Handlera wzial i to przerobil w mainie
+
+3. Na Nucleo pomylsec nad SPI DMA, zeby nie kopiowac do buffera blocking with CPU,
+tylko zeby DMA samo to zrobilo bez uzycia procka

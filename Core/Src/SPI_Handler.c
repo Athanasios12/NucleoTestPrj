@@ -30,7 +30,8 @@ const char* spi_commands[] =
 
 volatile bool spi_tx_done = false;
 volatile bool spi_rx_done = false;
-bool spi_commEstablished = false;
+static bool spi_commEstablished = false;
+static bool spi_dateReadRequest = false;
 
 static bool checkIfConnectedRpi(void);
 
@@ -158,6 +159,7 @@ bool SPI_RequestDateTimeFromRpi()
 	{
 		memcpy(spi_commands[RPI_GET_DATE_TIME], spi_tx_buff,
 			strlen(spi_commands[RPI_GET_DATE_TIME]));
+		spi_dateReadRequest = true;
 		SPI_SM_State = SPI_TX;
 		HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 		return true;
@@ -199,8 +201,16 @@ void SPI_CommSM() // called cyclicly in main
 		case SPI_TX:
 			if (spi_tx_done)
 			{
-				SPI_SM_State = SPI_IDLE;
-				spi_tx_done = false;
+				if (spi_dateReadRequest)
+				{
+					spi_dateReadRequest = false;
+					SPI_PrepareReadTransmitData();
+				}
+				else
+				{
+					SPI_SM_State = SPI_IDLE;
+					spi_tx_done = false;
+				}
 			}
 			break;
 		default:

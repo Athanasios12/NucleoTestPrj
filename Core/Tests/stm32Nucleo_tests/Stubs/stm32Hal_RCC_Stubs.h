@@ -1,0 +1,7 @@
+#ifndef HAL_RCC_STUBS_H
+#define HAL_RCC_STUBS_H
+
+void __HAL_RCC_SPI2_CLK_ENABLE();
+void __HAL_RCC_GPIOB_CLK_ENABLE();
+
+#endif //HAL_RCC_STUBS_H

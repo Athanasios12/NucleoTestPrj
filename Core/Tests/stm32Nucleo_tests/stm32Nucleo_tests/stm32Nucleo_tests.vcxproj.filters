@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Files Under Test">
+      <UniqueIdentifier>{c3d3938f-8e7d-4390-af4b-a514b9a7ca8e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files Under Test\Src">
+      <UniqueIdentifier>{36c1224d-638d-4ded-a963-2f57ab9faaf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Files Under Test\Inc">
+      <UniqueIdentifier>{19abe42a-0f05-4b4b-ac1f-20e2fc865cfb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Unit Tests">
+      <UniqueIdentifier>{c14d385d-94c8-4c4d-931e-abc27acf4b45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Unit Tests\Src">
+      <UniqueIdentifier>{01465818-8ea5-45cd-bd73-c1f19d5f3434}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Unit Tests\Inc">
+      <UniqueIdentifier>{4086bf59-ec29-4f35-bce8-f747a50e56c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Stubs">
+      <UniqueIdentifier>{0d06e017-81dd-4b15-8437-f21a4b0f5a0e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mocks">
+      <UniqueIdentifier>{6f508df5-c0d5-43b6-b24b-bf5b4e325170}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="SPI_Handler_Tests.cpp">
+      <Filter>Unit Tests\Src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Src\SPI_Handler.c">
+      <Filter>Files Under Test\Src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Mocks\Mock_HAL_GPIO.cpp">
+      <Filter>Mocks</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Mocks\MOCK_HAL_NVIC.cpp">
+      <Filter>Mocks</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Mocks\MOCK_HAL_RCC.cpp">
+      <Filter>Mocks</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Mocks\MOCK_HAL_SPI.cpp">
+      <Filter>Mocks</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Stubs\common.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Stubs\stm32f0xx_hal.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Stubs\stm32Hal_GPIO_Stubs.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Stubs\stm32Hal_SPI_Stubs.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Inc\SPI_Handler.h">
+      <Filter>Files Under Test\Inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Stubs\stm32Hal_NVIC_Stubs.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Stubs\stm32Hal_RCC_Stubs.h">
+      <Filter>Stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Mocks\Mock_HAL_GPIO.h">
+      <Filter>Mocks</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Mocks\Mock_HAL_NVIC.h">
+      <Filter>Mocks</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Mocks\Mock_HAL_RCC.h">
+      <Filter>Mocks</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Mocks\Mock_HAL_SPI.h">
+      <Filter>Mocks</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -72,6 +72,7 @@ char currentTimeDateData[150];
 #define ADC_12BIT_CHANNEL_RESOLUTION 4096.0f
 
 //DHT 11 Sensor
+DHT11_Data DHT11_sensorData = {0};
 TIM_TypeDef *DHT11_timerID = TIM1;
 GPIO_TypeDef* DHT11_GPIO_PORT = GPIOC;
 uint16_t DHT11_GPIO_Pin = GPIO_PIN_0;
@@ -161,9 +162,21 @@ static void HandleSpiDataTransfer()
 		}
 		else
 		{
+			//get current adc conversion
+			float adcVoltage = ((float)adcBuffer[ADC_BUFFER_SIZE - 1] * ADC_MAX_VOLTAGE)
+				/ ADC_12BIT_CHANNEL_RESOLUTION;
+			GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
 			//cyclicly send Sensor State
-			//check rtc time difference, update
-			SPI_TxSensorData sensorData = {0};
+			SPI_TxSensorData sensorData =
+			{
+				.adcVoltage = adcVoltage,
+				.humidity_dec = DHT11_sensorData.rh_dec,
+				.humidity_int = DHT11_sensorData.rh_int,
+				.moveSensorState = moveSensorState,
+				.temp_dec = DHT11_sensorData.temp_dec,
+				.temp_int = DHT11_sensorData.temp_int
+			};
+
 			SPI_PrepareSensorDataTransmit(&sensorData);
 		}
 	}
@@ -174,6 +187,10 @@ static void HandleSpiDataTransfer()
 			SPI_RxDateTime rxDateTime = {0};
 			RpiDateTimeSynced = SPI_ReadTransmitData(&rxDateTime);
 			MX_RTC_Init(&rxDateTime);
+		}
+		else
+		{
+			//other cyclic data from RPI for now nothing
 		}
 	}
 }
@@ -226,8 +243,6 @@ int main(void)
 	 SPI_Init();
 	 spi_initialized = SPI_RequestDateTimeFromRpi();
   }
-
-  DHT11_Data DHT11_sensorData = {0};
 
   HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);
 

@@ -13,6 +13,8 @@ public:
     virtual ~Mock_HAL_GPIO();
 
     MOCK_METHOD(void, HAL_GPIO_Init, (GPIO_TypeDef *, GPIO_InitTypeDef *));
+
+    GPIO_InitTypeDef getGpioConfig() const;
 };
 
 #endif //MOCK_HAL_GPIO_H

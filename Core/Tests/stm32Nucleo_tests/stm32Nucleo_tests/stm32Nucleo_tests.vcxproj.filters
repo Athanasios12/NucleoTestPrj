@@ -53,6 +53,9 @@
     <ClCompile Include="..\Mocks\MOCK_HAL_SPI.cpp">
       <Filter>Mocks</Filter>
     </ClCompile>
+    <ClCompile Include="..\Stubs\stm32Hal_SPI_Stubs.c">
+      <Filter>Stubs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Stubs\common.h">

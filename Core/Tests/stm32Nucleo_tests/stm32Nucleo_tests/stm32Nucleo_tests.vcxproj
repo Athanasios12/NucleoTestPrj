@@ -131,6 +131,7 @@
     <ClCompile Include="..\Mocks\MOCK_HAL_NVIC.cpp" />
     <ClCompile Include="..\Mocks\MOCK_HAL_RCC.cpp" />
     <ClCompile Include="..\Mocks\MOCK_HAL_SPI.cpp" />
+    <ClCompile Include="..\Stubs\stm32Hal_SPI_Stubs.c" />
     <ClCompile Include="SPI_Handler_Tests.cpp" />
   </ItemGroup>
   <ItemGroup>

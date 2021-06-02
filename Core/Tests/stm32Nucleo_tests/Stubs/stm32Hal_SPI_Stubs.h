@@ -293,10 +293,10 @@
 * @}
 */
 
-
 typedef enum
 {
-    SPI1 = 0,
+    NoDevice = 0,
+    SPI1,
     SPI2
 } SPI_Devices;
 
@@ -375,5 +375,9 @@ HAL_StatusTypeDef HAL_SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, ui
 HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData,
     uint16_t Size);
 HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef* hspi);
+
+extern SPI_HandleTypeDef hspi2;
+
+void STUB_Reset_SpiConfigHandle();
 
 #endif //HAL_SPI_STUBS_H

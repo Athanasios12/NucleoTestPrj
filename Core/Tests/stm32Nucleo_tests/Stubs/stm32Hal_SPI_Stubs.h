@@ -376,8 +376,9 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *p
     uint16_t Size);
 HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef* hspi);
 
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi);
+
 extern SPI_HandleTypeDef hspi2;
 
-void STUB_Reset_SpiConfigHandle();
 
 #endif //HAL_SPI_STUBS_H

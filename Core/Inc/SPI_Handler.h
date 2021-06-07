@@ -47,6 +47,7 @@ typedef struct
 void SPI_CommSM();
 bool SPI_Config();
 void SPI_Init();
+bool SPI_CommEstablished();
 bool SPI_PrepareSensorDataTransmit(SPI_TxSensorData *txData);
 bool SPI_ReadTransmitData(SPI_RxDateTime *rxData);
 bool SPI_RequestDateTimeFromRpi();

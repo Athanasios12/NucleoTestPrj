@@ -10,7 +10,7 @@
 
 typedef enum
 {
-	RPI_INIT,
+	RPI_INIT = 0,
 	STM_CONNECTED_ACK,
 	RPI_GET_DATE_TIME,
 	SEND_SENSOR_DATA
@@ -56,6 +56,11 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
 SPI_State SPI_getState()
 {
 	return SPI_SM_State;
+}
+
+bool SPI_CommEstablished()
+{
+	return spi_commEstablished;
 }
 
 bool SPI_Config()
@@ -109,7 +114,7 @@ bool SPI_Config()
 
 void SPI_Init()
 {
-	if (!spi_commEstablished)
+	if (!spi_commEstablished && (SPI_SM_State == SPI_INIT))
 	{
 		SPI_SM_State = SPI_RX;
 		HAL_SPI_Receive_IT(&hspi2, spi_rx_buff, SPI_RX_BUFF_SIZE);
@@ -185,7 +190,7 @@ void SPI_CommSM() // called cyclicly in main
 					if (spi_commEstablished)
 					{
 						SPI_SM_State = SPI_TX;
-						memcpy(spi_commands[STM_CONNECTED_ACK], spi_tx_buff,
+						memcpy(spi_tx_buff, spi_commands[STM_CONNECTED_ACK],
 							strlen(spi_commands[STM_CONNECTED_ACK]));
 						HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 					}
@@ -222,7 +227,7 @@ static bool checkIfConnectedRpi(void)
 {
 	if (!spi_commEstablished)
 	{
-		if (strncmp(spi_tx_buff, spi_commands[RPI_INIT],
+		if (0 == strncmp(spi_rx_buff, spi_commands[RPI_INIT],
 			strlen(spi_commands[RPI_INIT])))
 		{
 			return true;

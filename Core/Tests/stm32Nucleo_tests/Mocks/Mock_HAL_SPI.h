@@ -16,6 +16,8 @@ public:
     MOCK_METHOD(HAL_StatusTypeDef, HAL_SPI_Transmit_IT, (SPI_HandleTypeDef *, uint8_t *, uint16_t ));
     MOCK_METHOD(HAL_StatusTypeDef, HAL_SPI_Receive_IT, (SPI_HandleTypeDef *, uint8_t *, uint16_t));
     MOCK_METHOD(HAL_StatusTypeDef, HAL_SPI_TransmitReceive_IT, (SPI_HandleTypeDef *, uint8_t *, uint8_t *, uint16_t));
+
+    void resetSpiConfig() const;
 };
 
 #endif //MOCK_HAL_SPI_H

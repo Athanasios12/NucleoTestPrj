@@ -26,8 +26,8 @@ typedef struct
 	uint8_t humidity_dec;
 	uint8_t temp_int;
 	uint8_t temp_dec;
-	uint8_t adcVoltage : 3;
-	uint8_t moveSensorState : 1;
+	uint8_t adcVoltage; // 0 - 7V
+	uint8_t moveSensorState; // 0x0 - on, 0x1 - off, 2 - 0xFF - invalid
 } SPI_TxSensorData;
 
 typedef struct

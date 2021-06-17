@@ -16,10 +16,25 @@ using ::testing::SetArrayArgument;
 using ::testing::ElementsAreArray;
 using ::testing::Args;
 
+const uint8_t MSG_ID_BYTE = 9U;
+static uint32_t msg_Id = 0U;
+
 MATCHER_P2(HasBytes, bytes, size, "")
 {
     return (0 == memcmp(arg, bytes, size));
 }
+
+MATCHER_P(VerifyTxSpiMsg, buffer, "")
+{
+    bool verificationSuccess = false;
+    if (0 == memcmp(arg, buffer, sizeof(SPI_TxSensorData)))
+    {
+        verificationSuccess = (arg[MSG_ID_BYTE] == buffer[MSG_ID_BYTE]);
+    }
+    return verificationSuccess;
+}
+
+
 
 TEST(SpiHandlerTests, Test_SPI_Config_Success)
 {
@@ -104,7 +119,8 @@ TEST(SpiHandlerTests, Test_SPI_CommSM_EstablishComm)
     Mock_HAL_SPI mockSpi;
     uint8_t txBuffer[SPI_TX_BUFF_SIZE] = { 0 };
     const char responseMsg[] = "STM_ACK";
-    strncpy_s((char*)txBuffer, SPI_RX_BUFF_SIZE, responseMsg, strlen(responseMsg));
+    strncpy_s((char*)txBuffer, SPI_TX_BUFF_SIZE, responseMsg, strlen(responseMsg));
+    txBuffer[MSG_ID_BYTE] = msg_Id++;
 
     EXPECT_EQ(SPI_RX, SPI_getState());
     EXPECT_EQ(false, SPI_CommEstablished());
@@ -121,4 +137,139 @@ TEST(SpiHandlerTests, Test_SPI_CommSM_EstablishComm)
 
     EXPECT_EQ(SPI_TX, SPI_getState());
     EXPECT_EQ(true, SPI_CommEstablished());
+}
+
+TEST(SpiHandlerTests, Test_SPI_CommSM_TxDone_CommInit)
+{
+    Mock_HAL_SPI mockSpi;
+
+    EXPECT_EQ(SPI_TX, SPI_getState());
+
+    //simulate IRQHandler calling the callback function    
+    EXPECT_EQ(false, spi_tx_done);
+    HAL_SPI_TxCpltCallback(&hspi2);
+    EXPECT_EQ(true, spi_tx_done);
+
+    SPI_CommSM();
+
+    EXPECT_EQ(SPI_IDLE, SPI_getState());
+    EXPECT_EQ(false, spi_tx_done);
+}
+
+TEST(SpiHandlerTests, Test_SPI_RequestDateTimeFromRpi_Success)
+{
+    Mock_HAL_SPI mockSpi;
+    uint8_t txBuffer[SPI_TX_BUFF_SIZE] = { 0 };
+    const char dateTimeReadRequestMsg[] = "STM_GET";
+    strncpy_s((char*)txBuffer, SPI_TX_BUFF_SIZE, 
+        dateTimeReadRequestMsg, strlen(dateTimeReadRequestMsg));
+    txBuffer[MSG_ID_BYTE] = msg_Id++;
+
+    EXPECT_EQ(SPI_IDLE, SPI_getState());
+
+    EXPECT_CALL(mockSpi, HAL_SPI_Transmit_IT(&hspi2,
+        HasBytes(txBuffer, strlen(dateTimeReadRequestMsg)), SPI_TX_BUFF_SIZE));
+
+    EXPECT_EQ(true, SPI_RequestDateTimeFromRpi());
+
+    EXPECT_EQ(SPI_TX, SPI_getState());
+}
+
+TEST(SpiHandlerTests, Test_SPI_RequestDateTimeFromRpi_Fail_WrongState)
+{
+    Mock_HAL_SPI mockSpi;
+
+    auto state = SPI_getState();
+
+    EXPECT_EQ(false, SPI_RequestDateTimeFromRpi());
+
+    EXPECT_EQ(state, SPI_getState());
+}
+
+TEST(SpiHandlerTests, Test_SPI_CommSM_TxDone_DateTimeRead)
+{
+    Mock_HAL_SPI mockSpi;
+
+    EXPECT_EQ(SPI_TX, SPI_getState());
+
+    //simulate IRQHandler calling the callback function    
+    EXPECT_EQ(false, spi_tx_done);
+    HAL_SPI_TxCpltCallback(&hspi2);
+    EXPECT_EQ(true, spi_tx_done);
+
+    EXPECT_CALL(mockSpi, HAL_SPI_Receive_IT(&hspi2, _, SPI_RX_BUFF_SIZE));
+
+    SPI_CommSM();
+
+    EXPECT_EQ(SPI_RX, SPI_getState());
+    EXPECT_EQ(false, spi_tx_done);
+}
+
+TEST(SpiHandlerTests, Test_SPI_CommSM_RxDone_DateTimeRead)
+{
+    Mock_HAL_SPI mockSpi;
+
+    EXPECT_EQ(SPI_RX, SPI_getState());
+
+    //simulate IRQHandler calling the callback function    
+    EXPECT_EQ(false, spi_rx_done);
+    HAL_SPI_RxCpltCallback(&hspi2);
+    EXPECT_EQ(true, spi_rx_done);
+
+    SPI_CommSM();
+
+    EXPECT_EQ(SPI_RX_DATA_AVAILABLE, SPI_getState());
+    EXPECT_EQ(false, spi_rx_done);
+}
+
+TEST(SpiHandlerTests, Test_SPI_ReadTransmitData)
+{
+    Mock_HAL_SPI mockSpi;
+    SPI_RxDateTime dateTime;
+
+    EXPECT_EQ(SPI_RX_DATA_AVAILABLE, SPI_getState());
+    
+    EXPECT_EQ(true, SPI_ReadTransmitData(&dateTime));
+
+    EXPECT_EQ(SPI_IDLE, SPI_getState());
+}
+
+TEST(SpiHandlerTests, Test_SPI_ReadTransmitData_Fail_NoNewDataAvailable)
+{
+    Mock_HAL_SPI mockSpi;
+    SPI_RxDateTime dateTime;
+
+    auto state = SPI_getState();
+
+    EXPECT_EQ(false, SPI_ReadTransmitData(&dateTime));
+
+    //no state change
+    EXPECT_NE(SPI_RX_DATA_AVAILABLE, state);
+    EXPECT_EQ(SPI_getState(), state);
+}
+
+TEST(SpiHandlerTests, Test_SPI_PrepareSensorDataTransmit)
+{
+    Mock_HAL_SPI mockSpi;
+    SPI_TxSensorData sensorData;
+    sensorData.temp_int = 21;
+    sensorData.temp_dec = 50;
+    sensorData.humidity_int = 45;
+    sensorData.humidity_dec = 25;
+    sensorData.adcVoltage = 5;
+    sensorData.moveSensorState = 1;
+
+    uint8_t txBuffer[SPI_TX_BUFF_SIZE] = { 0 };
+
+    memcpy(txBuffer, reinterpret_cast<uint8_t*>(&sensorData), sizeof(SPI_TxSensorData));
+    txBuffer[MSG_ID_BYTE] = msg_Id++;
+
+    EXPECT_CALL(mockSpi, HAL_SPI_Transmit_IT(&hspi2,
+        VerifyTxSpiMsg(txBuffer), SPI_TX_BUFF_SIZE));
+    EXPECT_EQ(SPI_IDLE, SPI_getState());
+
+    EXPECT_EQ(true, SPI_PrepareSensorDataTransmit(&sensorData));
+
+    //no state change
+    EXPECT_EQ(SPI_TX, SPI_getState());
 }

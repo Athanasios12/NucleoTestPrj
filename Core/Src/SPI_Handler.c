@@ -28,12 +28,15 @@ const char* spi_commands[] =
 	"RPI_GET"
 };
 
+const uint8_t MSG_ID_BYTE = 9U;
+static uint32_t msg_Id = 0U;
 volatile bool spi_tx_done = false;
 volatile bool spi_rx_done = false;
 static bool spi_commEstablished = false;
 static bool spi_dateReadRequest = false;
 
 static bool checkIfConnectedRpi(void);
+static bool SPI_PrepareReadTransmitData();
 
 // This is called when SPI transmit is done
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
@@ -125,15 +128,16 @@ bool SPI_PrepareSensorDataTransmit(SPI_TxSensorData *txData)
 {
 	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
 	{
-		memcpy((uint8_t*)txData, spi_tx_buff, sizeof(SPI_TxSensorData));
 		SPI_SM_State = SPI_TX;
+		memcpy(spi_tx_buff, (uint8_t*)txData, sizeof(SPI_TxSensorData));
+		spi_tx_buff[MSG_ID_BYTE] = msg_Id++;
 		HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 		return true;
 	}
 	return false;
 }
 
-bool SPI_PrepareReadTransmitData()
+static bool SPI_PrepareReadTransmitData()
 {
 	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
 	{
@@ -162,10 +166,13 @@ bool SPI_RequestDateTimeFromRpi()
 {
 	if (SPI_SM_State == SPI_IDLE && spi_commEstablished)
 	{
-		memcpy(spi_commands[RPI_GET_DATE_TIME], spi_tx_buff,
-			strlen(spi_commands[RPI_GET_DATE_TIME]));
 		spi_dateReadRequest = true;
 		SPI_SM_State = SPI_TX;
+
+		memcpy(spi_tx_buff, spi_commands[RPI_GET_DATE_TIME],
+			strlen(spi_commands[RPI_GET_DATE_TIME]));
+		spi_tx_buff[MSG_ID_BYTE] = msg_Id++;
+
 		HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 		return true;
 	}
@@ -192,6 +199,7 @@ void SPI_CommSM() // called cyclicly in main
 						SPI_SM_State = SPI_TX;
 						memcpy(spi_tx_buff, spi_commands[STM_CONNECTED_ACK],
 							strlen(spi_commands[STM_CONNECTED_ACK]));
+						spi_tx_buff[MSG_ID_BYTE] = msg_Id++;
 						HAL_SPI_Transmit_IT(&hspi2, spi_tx_buff, SPI_TX_BUFF_SIZE);
 					}
 				}
@@ -206,15 +214,12 @@ void SPI_CommSM() // called cyclicly in main
 		case SPI_TX:
 			if (spi_tx_done)
 			{
+				SPI_SM_State = SPI_IDLE;
+				spi_tx_done = false;
 				if (spi_dateReadRequest)
 				{
 					spi_dateReadRequest = false;
 					SPI_PrepareReadTransmitData();
-				}
-				else
-				{
-					SPI_SM_State = SPI_IDLE;
-					spi_tx_done = false;
 				}
 			}
 			break;

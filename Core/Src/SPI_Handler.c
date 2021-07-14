@@ -168,7 +168,6 @@ bool SPI_RequestDateTimeFromRpi()
 	{
 		spi_dateReadRequest = true;
 		SPI_SM_State = SPI_TX;
-
 		memcpy(spi_tx_buff, spi_commands[RPI_GET_DATE_TIME],
 			strlen(spi_commands[RPI_GET_DATE_TIME]));
 		spi_tx_buff[MSG_ID_BYTE] = msg_Id++;

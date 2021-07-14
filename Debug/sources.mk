@@ -19,5 +19,7 @@ OBJCOPY_BIN :=
 SUBDIRS := \
 Core/Src \
 Core/Startup \
+Core/Tests/stm32Nucleo_tests/Stubs \
+Core/Tests/stm32Nucleo_tests/stm32Nucleo_tests/Debug \
 Drivers/STM32F0xx_HAL_Driver/Src \
 

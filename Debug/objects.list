@@ -8,6 +8,7 @@
 "Core/Src/sysmem.o"
 "Core/Src/system_stm32f0xx.o"
 "Core/Startup/startup_stm32f030r8tx.o"
+"Core/Tests/stm32Nucleo_tests/Stubs/stm32Hal_SPI_Stubs.o"
 "Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal.o"
 "Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc.o"
 "Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc_ex.o"

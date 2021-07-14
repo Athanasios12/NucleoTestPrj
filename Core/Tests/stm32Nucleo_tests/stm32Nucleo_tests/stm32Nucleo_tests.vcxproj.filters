@@ -56,6 +56,9 @@
     <ClCompile Include="..\Stubs\stm32Hal_SPI_Stubs.c">
       <Filter>Stubs</Filter>
     </ClCompile>
+    <ClCompile Include="Dht11_Tests.cpp">
+      <Filter>Unit Tests\Src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Stubs\common.h">

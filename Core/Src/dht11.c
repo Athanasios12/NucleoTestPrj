@@ -163,7 +163,7 @@ bool DHT11_ReadDHT11Data(DHT11_Data *sensorData)
 					//Transmission begins with 50us of low voltage level,
 					//When the high occurs start read
 				}
-				//Next starts sending hight volage - if the high is 26-28us the bit is "0", if 70us then "1"
+				//Next starts sending high voltage - if the high is 26-28us the bit is "0", if 70us then "1"
 				//Wait 40us - if low it means that the bit is "0"
 				DHT11__delayMicroSec(40);
 				if (GPIO_PIN_SET == HAL_GPIO_ReadPin(DHT11_GPIO_PORT, DHT11_GPIO_PIN))

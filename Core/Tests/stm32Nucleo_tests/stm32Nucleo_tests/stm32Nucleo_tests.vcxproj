@@ -70,7 +70,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ExecutablePath>$(CTCWRAPDIR);.;$(ExecutablePath)</ExecutablePath>
+    <ExecutablePath>$(ExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -134,6 +134,7 @@
     <ClCompile Include="..\Mocks\MOCK_HAL_RCC.cpp" />
     <ClCompile Include="..\Mocks\MOCK_HAL_SPI.cpp" />
     <ClCompile Include="..\Stubs\stm32Hal_SPI_Stubs.c" />
+    <ClCompile Include="Dht11_Tests.cpp" />
     <ClCompile Include="SPI_Handler_Tests.cpp" />
   </ItemGroup>
   <ItemGroup>

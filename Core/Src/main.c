@@ -77,7 +77,6 @@ TIM_TypeDef *DHT11_timerID = TIM1;
 GPIO_TypeDef* DHT11_GPIO_PORT = GPIOC;
 uint16_t DHT11_GPIO_Pin = GPIO_PIN_0;
 
-bool RpiDateTimeSynced = false;
 bool RTC_Initalized = false;
 
 
@@ -98,7 +97,7 @@ static void setPWMPeriod();
 static void HandleSpiDataTransfer();
 static bool publishDataBluetooth(char *currentTimeDateData,
 		DHT11_Data *DHT11_sensorData, int moveSensorState);
-
+static inline bool timeElapsedDth11Read();
 
 static void setPWMPeriod()
 {
@@ -156,7 +155,7 @@ static void HandleSpiDataTransfer()
 	SPI_State state = SPI_getState();
 	if (SPI_IDLE == state)
 	{
-		if (!RpiDateTimeSynced)
+		if (!RTC_Initalized)
 		{
 			SPI_RequestDateTimeFromRpi();
 		}
@@ -166,6 +165,12 @@ static void HandleSpiDataTransfer()
 			float adcVoltage = ((float)adcBuffer[ADC_BUFFER_SIZE - 1] * ADC_MAX_VOLTAGE)
 				/ ADC_12BIT_CHANNEL_RESOLUTION;
 			GPIO_PinState moveSensorState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
+
+			//If 2 minutes passed since last Dth11 read, perform new read
+			if (timeElapsedDth11Read())
+			{
+				DHT11_ReadDHT11Data(&DHT11_sensorData);
+			}
 			//cyclicly send Sensor State
 			SPI_TxSensorData sensorData =
 			{
@@ -182,17 +187,35 @@ static void HandleSpiDataTransfer()
 	}
 	else if (SPI_RX_DATA_AVAILABLE == state)
 	{
-		if (!RpiDateTimeSynced)
+		if (!RTC_Initalized)
 		{
 			SPI_RxDateTime rxDateTime = {0};
-			RpiDateTimeSynced = SPI_ReadTransmitData(&rxDateTime);
-			MX_RTC_Init(&rxDateTime);
+			if (SPI_ReadTransmitData(&rxDateTime))
+			{
+				MX_RTC_Init(&rxDateTime);
+			}
 		}
 		else
 		{
 			//other cyclic data from RPI for now nothing
 		}
 	}
+}
+
+static inline bool timeElapsedDth11Read()
+{
+	bool newReadNecessary = false;
+	const uint8_t minutesThreshold = 2U; //Read Dth11 Sensor every 2 minutes
+	static RTC_TimeTypeDef rtcLastReadTime = {0};
+	RTC_TimeTypeDef rtcCurrentTime = {0};
+
+	HAL_RTC_GetTime(&hrtc, &rtcCurrentTime, RTC_FORMAT_BIN);
+	if (minutesThreshold <= rtcLastReadTime.Minutes - rtcCurrentTime.Minutes)
+	{
+		rtcLastReadTime = rtcCurrentTime;
+		newReadNecessary = true;
+	}
+	return newReadNecessary;
 }
 
 /* USER CODE END PFP */
@@ -240,8 +263,8 @@ int main(void)
   bool spi_initialized = false;
   if (SPI_Config())
   {
-	 SPI_Init();
-	 spi_initialized = SPI_RequestDateTimeFromRpi();
+	  SPI_Init();
+	  spi_initialized = true;
   }
 
   HAL_TIM_PWM_Start(&hTim3_PWM_Servo, TIM_CHANNEL_2);

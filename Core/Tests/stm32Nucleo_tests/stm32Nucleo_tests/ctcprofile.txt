@@ -1,0 +1,142 @@
+*****************************************************************************
+*           CTC++, Test Coverage Analyzer for C/C++, Version 6.5.5          *
+*                                                                           *
+*                         EXECUTION PROFILE LISTING                         *
+*                                                                           *
+*                    Copyright (c) 1993-2009 Testwell Oy                    *
+*****************************************************************************
+
+
+Symbol file(s) used   : MON.sym (Thu Jun 17 10:19:20 2021)
+Data file(s) used     : MON.dat (Thu Jun 17 10:27:01 2021)
+Listing produced at   : Thu Jun 17 10:27:11 2021
+Coverage view         : As instrumented
+
+
+
+MONITORED SOURCE FILE : ..\..\..\Src\SPI_Handler.c
+INSTRUMENTATION MODE  : function-decision
+
+    START/       END/
+      TRUE      FALSE    LINE DESCRIPTION
+=============================================================================
+
+         6          6      39 FUNCTION HAL_SPI_TxCpltCallback()
+         6          0 -    41 if (SPI2 == hspi -> Instance)
+
+***TER  67 % (  2/  3) of FUNCTION HAL_SPI_TxCpltCallback()
+-----------------------------------------------------------------------------
+
+         5          5      48 FUNCTION HAL_SPI_RxCpltCallback()
+         5          0 -    50 if (SPI2 == hspi -> Instance)
+
+***TER  67 % (  2/  3) of FUNCTION HAL_SPI_RxCpltCallback()
+-----------------------------------------------------------------------------
+
+        45          0      56 FUNCTION SPI_getState()
+        45                 58 return SPI_SM_State
+
+***TER 100 % (  2/  2) of FUNCTION SPI_getState()
+-----------------------------------------------------------------------------
+
+         9          0      61 FUNCTION SPI_CommEstablished()
+         9                 63 return spi_commEstablished
+
+***TER 100 % (  2/  2) of FUNCTION SPI_CommEstablished()
+-----------------------------------------------------------------------------
+
+         3          0      66 FUNCTION SPI_Config()
+         3          0 -    69 if (SPI_OFF == SPI_SM_State)
+         3          0 -   106   if (HAL_SPI_Init ( & hspi2 ) == HAL_OK)
+         3                112 return spi_config_success
+
+***TER  67 % (  4/  6) of FUNCTION SPI_Config()
+-----------------------------------------------------------------------------
+
+         3          3     115 FUNCTION SPI_Init()
+         3          0 -   117 if (! spi_commEstablished && ( SPI_SM_State ==..
+
+***TER  67 % (  2/  3) of FUNCTION SPI_Init()
+-----------------------------------------------------------------------------
+
+         0          0 -   124 FUNCTION SPI_PrepareSensorDataTransmit()
+         0          0 -   126 if (SPI_SM_State == SPI_IDLE && spi_commEstabl..
+         0            -   131   return 1
+         0            -   133 return 0
+
+***TER   0 % (  0/  5) of FUNCTION SPI_PrepareSensorDataTransmit()
+-----------------------------------------------------------------------------
+
+         3          0     136 FUNCTION SPI_PrepareReadTransmitData()
+         3          0 -   138 if (SPI_SM_State == SPI_IDLE && spi_commEstabl..
+         3          0 -   141   if (HAL_OK == HAL_SPI_Receive_IT ( & hspi2 ,..
+         3                143     return 1
+         0            -   146 return 0
+
+***TER  57 % (  4/  7) of FUNCTION SPI_PrepareReadTransmitData()
+-----------------------------------------------------------------------------
+
+         1          0     149 FUNCTION SPI_ReadTransmitData()
+         1          0 -   151 if (SPI_SM_State == SPI_RX_DATA_AVAILABLE)
+         1                156   return 1
+         0            -   158 return 0
+
+***TER  60 % (  3/  5) of FUNCTION SPI_ReadTransmitData()
+-----------------------------------------------------------------------------
+
+         6          0     161 FUNCTION SPI_RequestDateTimeFromRpi()
+         3          3     163 if (SPI_SM_State == SPI_IDLE && spi_commEstabl..
+         3                170   return 1
+         3                172 return 0
+
+***TER 100 % (  5/  5) of FUNCTION SPI_RequestDateTimeFromRpi()
+-----------------------------------------------------------------------------
+
+        11         11     175 FUNCTION SPI_CommSM()
+                          177 switch ( SPI_SM_State )
+         0            -   179 case SPI_IDLE:
+         0            -   180   break
+         5                181 case SPI_RX:
+         5          0 -   182   if (spi_rx_done)
+         3          2     185     if (! spi_commEstablished)
+         3          0 -   190       if (spi_commEstablished)
+                          198     else
+         5                203   break
+         0            -   204 case SPI_RX_DATA_AVAILABLE:
+         0            -   205   break
+         6                206 case SPI_TX:
+         6          0 -   207   if (spi_tx_done)
+         3          3     211     if (spi_dateReadRequest)
+         6                217   break
+         0            -   218 default:
+         0            -   219   break
+
+***TER  57 % ( 12/ 21) of FUNCTION SPI_CommSM()
+-----------------------------------------------------------------------------
+
+         3          0     223 FUNCTION checkIfConnectedRpi()
+         3          0 -   225 if (! spi_commEstablished)
+         3          0 -   228   if (0 == strncmp ( spi_rx_buff , spi_command..
+         3                230     return 1
+                          233 else
+         0            -   235   return 1
+         0            -   237 return 0
+
+***TER  50 % (  4/  8) of FUNCTION checkIfConnectedRpi()
+-----------------------------------------------------------------------------
+
+
+***TER  60 % ( 42/ 70) of SOURCE FILE ..\..\..\Src\SPI_Handler.c
+-----------------------------------------------------------------------------
+
+
+
+
+
+SUMMARY
+=======
+
+Number of monitored source files  : 1
+Number of source lines            : 238
+Number of measurement points      : 82
+TER                               : 60% (decision)
